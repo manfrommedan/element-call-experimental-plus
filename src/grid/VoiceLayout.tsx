@@ -78,6 +78,8 @@ export const VoiceLayout: FC<Props> = ({ vm, matrixRoom, muteStates }) => {
   const remoteMembers = useRemoteMembers(matrixRoom);
   const elapsedSeconds = useElapsedSeconds(connected);
 
+  useConnectHaptic(connected);
+
   const outputs = useMemo(
     () =>
       [...availableOutputs].map(([id, label]) => ({
@@ -133,7 +135,14 @@ export const VoiceLayout: FC<Props> = ({ vm, matrixRoom, muteStates }) => {
               : t("voice_layout.microphone_off")
           }
           active={!audioEnabled}
-          onClick={toggleAudio ?? undefined}
+          onClick={
+            toggleAudio
+              ? () => {
+                  haptic("tap");
+                  toggleAudio();
+                }
+              : undefined
+          }
           disabled={toggleAudio === null}
         >
           {audioEnabled ? <MicOnSolidIcon /> : <MicOffSolidIcon />}
@@ -146,7 +155,10 @@ export const VoiceLayout: FC<Props> = ({ vm, matrixRoom, muteStates }) => {
           active={
             activeOutput !== undefined && activeOutput.kind !== "earpiece"
           }
-          onClick={() => setPickerOpen(true)}
+          onClick={() => {
+            haptic("tap");
+            setPickerOpen(true);
+          }}
           disabled={outputs.length < 2}
         >
           {iconForOutputKind(activeOutput?.kind ?? "earpiece")}
@@ -154,7 +166,10 @@ export const VoiceLayout: FC<Props> = ({ vm, matrixRoom, muteStates }) => {
         <CircleButton
           label={t("voice_layout.hangup")}
           variant="danger"
-          onClick={vm.hangup}
+          onClick={() => {
+            haptic("hangup");
+            vm.hangup();
+          }}
         >
           <EndCallIcon />
         </CircleButton>
@@ -164,6 +179,7 @@ export const VoiceLayout: FC<Props> = ({ vm, matrixRoom, muteStates }) => {
         outputs={outputs}
         selectedId={selectedOutput?.id}
         onSelect={(id) => {
+          haptic("tap");
           mediaDevices.audioOutput.select(id);
           setPickerOpen(false);
         }}
@@ -409,6 +425,43 @@ function collectRemoteMembers(matrixRoom: MatrixRoom): MemberSummary[] {
         avatarUrl: url ? url : undefined,
       };
     });
+}
+
+/**
+ * Light haptic feedback for the primary controls. Mirrors the WhatsApp /
+ * native-dialer feel: taps get a short tick, hangup gets a slightly stronger
+ * burst so it feels decisive. Silently no-ops on platforms / configurations
+ * that don't expose the Vibration API.
+ */
+function haptic(kind: "tap" | "hangup" | "connect"): void {
+  if (typeof navigator === "undefined" || !navigator.vibrate) return;
+  switch (kind) {
+    case "tap":
+      navigator.vibrate(15);
+      break;
+    case "hangup":
+      navigator.vibrate(40);
+      break;
+    case "connect":
+      navigator.vibrate(25);
+      break;
+  }
+}
+
+/**
+ * Plays a subtle haptic the moment the call moves from "connecting/ringing"
+ * to "connected" — matches the WhatsApp behaviour of acknowledging the
+ * remote side picking up. Fires once per connect transition; subsequent
+ * reconnect blips don't re-trigger.
+ */
+function useConnectHaptic(connected: boolean): void {
+  const [hasFired, setHasFired] = useState(false);
+  useEffect(() => {
+    if (connected && !hasFired) {
+      haptic("connect");
+      setHasFired(true);
+    }
+  }, [connected, hasFired]);
 }
 
 function useElapsedSeconds(connected: boolean): number {
