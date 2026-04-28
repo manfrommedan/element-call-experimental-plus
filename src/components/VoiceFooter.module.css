@@ -60,10 +60,13 @@ Please see LICENSE in the repository root for full details.
 
 .buttonIcon {
   position: relative;
-  inline-size: 56px;
-  block-size: 56px;
+  /* Matches Compound's `iconOnly`/`size="lg"` icon button (48x48) so the */
+  /* phone-style footer doesn't visually stand out next to the upstream  */
+  /* CallFooter buttons used in video calls. */
+  inline-size: var(--cpd-space-12x);
+  block-size: var(--cpd-space-12x);
   border-radius: 50%;
-  background: var(--cpd-color-bg-subtle-primary);
+  background: var(--cpd-color-bg-subtle-secondary);
   border: 1px solid var(--cpd-color-border-interactive-secondary);
   display: grid;
   place-items: center;
