@@ -34,6 +34,25 @@ import { useMediaDevices } from "../MediaDevicesContext";
 import { Modal } from "../Modal";
 import styles from "./VoiceFooter.module.css";
 
+/** How long the video button stays in optimistic-pending state before it
+ * gives up waiting for the camera publication to land. Permission denials
+ * never resolve, so without a cap the spinner would spin forever. */
+const VIDEO_TOGGLE_PENDING_TIMEOUT_MS = 5_000;
+
+/** Vibration durations for the three haptic flavours (ms). */
+const HAPTIC_TAP_MS = 15;
+const HAPTIC_CONNECT_MS = 25;
+const HAPTIC_HANGUP_MS = 40;
+
+/** North-American "precise" ringback pair (Hz). */
+const RINGBACK_FREQUENCIES_HZ = [440, 480] as const;
+
+/** Bell-System cadence: 2 s tone followed by 4 s of silence. */
+const RINGBACK_PULSE_DURATION_S = 2;
+const RINGBACK_CADENCE_MS = 6_000;
+const RINGBACK_GAIN = 0.5;
+const RINGBACK_RAMP_S = 0.05;
+
 interface Props {
   vm: CallViewModel;
   muteStates: MuteStates;
@@ -86,7 +105,10 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   }, [videoEnabled, videoPending]);
   useEffect(() => {
     if (!videoPending) return undefined;
-    const id = setTimeout(() => setVideoPending(false), 5_000);
+    const id = setTimeout(
+      () => setVideoPending(false),
+      VIDEO_TOGGLE_PENDING_TIMEOUT_MS,
+    );
     return (): void => clearTimeout(id);
   }, [videoPending]);
   const videoActive = videoEnabled || videoPending;
@@ -121,7 +143,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
           active={!audioEnabled}
           onClick={
             toggleAudio
-              ? () => {
+              ? (): void => {
                   haptic("tap");
                   toggleAudio();
                 }
@@ -157,7 +179,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
           pending={videoPending && !videoEnabled}
           onClick={
             toggleVideo
-              ? () => {
+              ? (): void => {
                   haptic("tap");
                   if (!videoEnabled) setVideoPending(true);
                   toggleVideo();
@@ -363,13 +385,13 @@ function haptic(kind: "tap" | "hangup" | "connect"): void {
   if (typeof navigator === "undefined" || !navigator.vibrate) return;
   switch (kind) {
     case "tap":
-      navigator.vibrate(15);
+      navigator.vibrate(HAPTIC_TAP_MS);
       break;
     case "hangup":
-      navigator.vibrate(40);
+      navigator.vibrate(HAPTIC_HANGUP_MS);
       break;
     case "connect":
-      navigator.vibrate(25);
+      navigator.vibrate(HAPTIC_CONNECT_MS);
       break;
   }
 }
@@ -468,14 +490,14 @@ function useOutgoingRingback(active: boolean): void {
       if (cancelled) return;
       try {
         const start = ctx.currentTime;
-        const duration = 2;
+        const duration = RINGBACK_PULSE_DURATION_S;
         const gainNode = ctx.createGain();
         gainNode.connect(ctx.destination);
         gainNode.gain.setValueAtTime(0, start);
-        gainNode.gain.linearRampToValueAtTime(0.5, start + 0.05);
-        gainNode.gain.setValueAtTime(0.5, start + duration - 0.05);
+        gainNode.gain.linearRampToValueAtTime(RINGBACK_GAIN, start + RINGBACK_RAMP_S);
+        gainNode.gain.setValueAtTime(RINGBACK_GAIN, start + duration - RINGBACK_RAMP_S);
         gainNode.gain.linearRampToValueAtTime(0, start + duration);
-        for (const frequency of [440, 480]) {
+        for (const frequency of RINGBACK_FREQUENCIES_HZ) {
           const osc = ctx.createOscillator();
           osc.type = "sine";
           osc.frequency.value = frequency;
@@ -486,7 +508,7 @@ function useOutgoingRingback(active: boolean): void {
       } catch {
         // AudioContext can land in a closed state mid-call; bail silently.
       }
-      timeoutId = setTimeout(playPulse, 6_000);
+      timeoutId = setTimeout(playPulse, RINGBACK_CADENCE_MS);
     };
 
     void ctx.resume().catch(() => undefined);
