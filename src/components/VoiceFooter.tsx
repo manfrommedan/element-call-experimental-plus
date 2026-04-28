@@ -71,6 +71,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   // the caller in it.
   useOutgoingRingback(participantCount === 1);
   useConnectHaptic(participantCount > 1);
+  useNotifyHostOnRemoteJoined(participantCount > 1);
 
   const outputs = useMemo(
     () =>
@@ -374,6 +375,35 @@ function formatTimer(totalSeconds: number): string {
   return hours > 0
     ? `${hours}:${pad(minutes)}:${pad(seconds)}`
     : `${minutes}:${pad(seconds)}`;
+}
+
+/**
+ * Notifies the embedding host (e.g. Element X's call activity) that the
+ * remote side has joined the call so it can stamp the call-summary timer
+ * accurately — neither the local LiveKit join nor the first DeviceMute
+ * echo are reliable proxies for that moment, so we surface a dedicated
+ * widget-API message and let the host snoop on it.
+ *
+ * Fires once per active session; the message is shaped like a regular
+ * fromWidget request so existing widget-message infrastructure forwards it
+ * unchanged.
+ */
+function useNotifyHostOnRemoteJoined(joined: boolean): void {
+  const [hasFired, setHasFired] = useState(false);
+  useEffect(() => {
+    if (!joined || hasFired) return;
+    setHasFired(true);
+    const target = window.parent !== window ? window.parent : window;
+    target.postMessage(
+      {
+        api: "fromWidget",
+        widgetId: "voice-layout-internal",
+        requestId: `voice-remote-joined-${Date.now()}`,
+        action: "io.element.call.remote_joined",
+      },
+      "*",
+    );
+  }, [joined, hasFired]);
 }
 
 /**
