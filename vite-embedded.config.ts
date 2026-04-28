@@ -9,6 +9,7 @@ import { defineConfig, mergeConfig } from "vite";
 import generateFile from "vite-plugin-generate-file";
 
 import fullConfig from "./vite.config";
+import { legacyWebviewPolyfills } from "./vite-plugins/legacyWebviewPolyfills";
 
 const base = "./";
 
@@ -20,6 +21,7 @@ export default defineConfig((env) =>
       base, // Use relative URLs to allow the app to be hosted under any path
       publicDir: false, // Don't serve the public directory which only contains the favicon
       plugins: [
+        legacyWebviewPolyfills(),
         generateFile([
           {
             type: "json",
