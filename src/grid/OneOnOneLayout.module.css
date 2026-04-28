@@ -43,3 +43,25 @@ Please see LICENSE in the repository root for full details.
 .slot[data-inline-alignment="end"] {
   inset-inline-start: unset;
 }
+
+/*
+ * Audio-only mode (callIntent === "audio"): paint the spotlight tile across
+ * the whole call view, drop the local PiP, and switch the tile background to
+ * the canvas colour so the avatar reads as the dominant element instead of a
+ * thumbnail floating inside a darker tile. The avatar inside the tile is
+ * sized off the tile dimensions, so simply expanding the container makes it
+ * grow to phone-call proportions without touching the Tile component.
+ */
+.layer.audioMode {
+  --video-tile-background: var(--cpd-color-bg-canvas-default);
+  --media-view-border-radius: 0;
+}
+
+.layer.audioMode .container {
+  inline-size: 100% !important;
+  block-size: 100% !important;
+}
+
+.layer.audioMode .local {
+  display: none;
+}

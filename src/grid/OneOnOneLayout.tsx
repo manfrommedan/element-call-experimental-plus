@@ -14,6 +14,7 @@ import { type CallLayout, arrangeTiles } from "./CallLayout";
 import styles from "./OneOnOneLayout.module.css";
 import { type DragCallback, useUpdateLayout } from "./Grid";
 import { useBehavior } from "../useBehavior";
+import { getUrlParams } from "../UrlParams";
 
 /**
  * An implementation of the "one-on-one" layout, in which the remote participant
@@ -38,6 +39,11 @@ export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
       () => arrangeTiles(width, height, 1),
       [width, height],
     );
+    // Switch the layout into "phone call" presentation when the host has
+    // requested an audio-only call. The active CSS rules drop the local PiP,
+    // expand the spotlight tile to fill the view, and switch the tile chrome
+    // to canvas colours — see OneOnOneLayout.module.css.
+    const audioMode = getUrlParams().callIntent === "audio";
 
     const onDragLocalTile: DragCallback = useCallback(
       ({ xRatio, yRatio }) =>
@@ -49,7 +55,12 @@ export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
     );
 
     return (
-      <div ref={ref} className={styles.layer}>
+      <div
+        ref={ref}
+        className={classNames(styles.layer, {
+          [styles.audioMode]: audioMode,
+        })}
+      >
         <Slot
           id={model.spotlight.id}
           model={model.spotlight}
