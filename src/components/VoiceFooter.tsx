@@ -87,7 +87,8 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   // Outgoing-call ringback while we're alone in the room. Stops as soon as a
   // second participant joins, which matches the moment the remote side picks
   // up. Stays silent for receivers since they join a room that already has
-  // the caller in it.
+  // the caller in it. Upstream's ringtone.mp3 loop is suppressed in InCallView
+  // for audio-intent calls so the two don't double up.
   useOutgoingRingback(participantCount === 1);
   useConnectHaptic(participantCount > 1);
   useNotifyHostOnRemoteJoined(participantCount > 1);
@@ -472,10 +473,7 @@ function useConnectHaptic(connected: boolean): void {
  * Classic outgoing dial-tone (ringback) generated with the Web Audio API:
  * two superposed sine waves at 440 Hz and 480 Hz (the North-American
  * "precise" ringback pair), repeating in a 2 s on / 4 s off cadence until
- * the active flag flips false. The bundled `join_call` sample only plays
- * once on the remote join event and is too quiet to bridge the wait, so
- * the synthesised tone fills the silence the caller would otherwise hear
- * after picking the contact.
+ * the active flag flips false.
  */
 function useOutgoingRingback(active: boolean): void {
   useEffect(() => {

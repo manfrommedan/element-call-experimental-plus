@@ -239,6 +239,11 @@ export const InCallView: FC<InCallViewProps> = ({
     () => void toggleRaisedHand(),
   );
 
+  // Whether the embedding host opened this call with audio intent. Drives the
+  // phone-style VoiceFooter swap and suppresses upstream UI bits (lobby
+  // ringtone, earpiece overlay) that conflict with that presentation.
+  const isAudioCall = getUrlParams().callIntent === "audio";
+
   const ringing = useBehavior(vm.ringing$);
   const audioParticipants = useBehavior(vm.livekitRoomItems$);
   const participantCount = useBehavior(vm.participantCount$);
@@ -261,10 +266,12 @@ export const InCallView: FC<InCallViewProps> = ({
     throw fatalCallError;
   }
 
-  // While ringing, loop the ringtone
+  // While ringing, loop the ringtone — but skip it for audio-intent calls,
+  // where VoiceFooter synthesises its own classic two-tone dial tone and the
+  // mp3 loop would double up.
   useEffect((): void | (() => void) => {
     const audio = latestPickupPhaseAudio.current;
-    if (ringing && audio) {
+    if (ringing && audio && !isAudioCall) {
       const endSound = audio.playSoundLooping(
         "waiting",
         audio.soundDuration["waiting"] ?? 1,
@@ -275,7 +282,7 @@ export const InCallView: FC<InCallViewProps> = ({
         });
       };
     }
-  }, [ringing, latestPickupPhaseAudio]);
+  }, [ringing, latestPickupPhaseAudio, isAudioCall]);
 
   const onViewClick = useCallback(
     (e: ReactMouseEvent) => {
@@ -426,16 +433,23 @@ export const InCallView: FC<InCallViewProps> = ({
     </>
   );
 
+  // The earpiece overlay is the upstream "phone-at-your-ear" splash that hides
+  // the media tiles when the user routes audio to the built-in earpiece. In an
+  // audio-only call our phone-style VoiceFooter is already the primary UI and
+  // there are no media tiles worth covering, so the overlay is redundant — it
+  // would just obscure our footer behind a generic upsell to "go back to
+  // video". Suppress it whenever the call URL declares audio intent.
   const earpieceOverlay = (
     <EarpieceOverlay
-      show={earpieceMode && !reconnecting}
+      show={earpieceMode && !reconnecting && !isAudioCall}
       onBackToVideoPressed={audioOutputSwitcher?.switch}
     />
   );
 
   // If the reconnecting toast or earpiece overlay obscures the media tiles, we
-  // need to remove them from the accessibility tree and block focus.
-  const contentObscured = reconnecting || earpieceMode;
+  // need to remove them from the accessibility tree and block focus. Audio
+  // calls intentionally leave earpieceMode unhandled here for the same reason.
+  const contentObscured = reconnecting || (earpieceMode && !isAudioCall);
 
   const Tile = useMemo(
     () =>
@@ -579,7 +593,6 @@ export const InCallView: FC<InCallViewProps> = ({
   // (mic / camera / share / reactions / settings) for everything else. We
   // still let video drive the upstream layouts so toggling the camera mid
   // call (either side) lights up the video tiles automatically.
-  const isAudioCall = getUrlParams().callIntent === "audio";
   // Only hide the settings button if we have an AppBar header and we are showing the header
   const footer = isAudioCall ? (
     <VoiceFooter vm={vm} muteStates={muteStates} hidden={!showFooter} />
