@@ -255,6 +255,10 @@
     "waiting_for_media": "Waiting for media..."
   },
   "voice_layout": {
+    "audio_output": "Audio output",
+    "audio_output_default": "Default",
+    "audio_output_picker_title": "Audio output",
+    "audio_output_unnamed": "Audio device {{number}}",
     "hangup": "End call",
     "microphone_off": "Muted",
     "microphone_on": "Microphone",

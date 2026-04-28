@@ -221,6 +221,10 @@
     "waiting_for_media": "В ожидании медиа..."
   },
   "voice_layout": {
+    "audio_output": "Вывод звука",
+    "audio_output_default": "По умолчанию",
+    "audio_output_picker_title": "Вывод звука",
+    "audio_output_unnamed": "Аудиоустройство {{number}}",
     "hangup": "Завершить",
     "microphone_off": "Без звука",
     "microphone_on": "Микрофон",

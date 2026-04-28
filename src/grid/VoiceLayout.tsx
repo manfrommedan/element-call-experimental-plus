@@ -5,12 +5,22 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE in the repository root for full details.
 */
 
-import { type FC, type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  type FC,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useObservableEagerState } from "observable-hooks";
 import { type TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Avatar } from "@vector-im/compound-web";
+import CheckIcon from "@vector-im/compound-design-tokens/assets/web/icons/check";
 import EndCallIcon from "@vector-im/compound-design-tokens/assets/web/icons/end-call";
+import EarpieceIcon from "@vector-im/compound-design-tokens/assets/web/icons/earpiece";
+import HeadphonesSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/headphones-solid";
 import MicOffSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/mic-off-solid";
 import MicOnSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/mic-on-solid";
 import VoiceCallIcon from "@vector-im/compound-design-tokens/assets/web/icons/voice-call";
@@ -22,7 +32,10 @@ import {
 } from "matrix-js-sdk";
 
 import { type CallViewModel } from "../state/CallViewModel/CallViewModel";
+import { type AudioOutputDeviceLabel } from "../state/MediaDevices";
 import { type MuteStates } from "../state/MuteStates";
+import { useMediaDevices } from "../MediaDevicesContext";
+import { Modal } from "../Modal";
 import styles from "./VoiceLayout.module.css";
 
 interface Props {
@@ -50,13 +63,31 @@ export const VoiceLayout: FC<Props> = ({ vm, matrixRoom, muteStates }) => {
   const connected = useObservableEagerState(vm.connected$);
   const reconnecting = useObservableEagerState(vm.reconnecting$);
   const ringing = useObservableEagerState(vm.ringing$);
-  const audioOutputSwitcher = useObservableEagerState(vm.audioOutputSwitcher$);
-  const earpieceMode = useObservableEagerState(vm.earpieceMode$);
   const audioEnabled = useObservableEagerState(muteStates.audio.enabled$);
   const toggleAudio = useObservableEagerState(muteStates.audio.toggle$);
 
+  const mediaDevices = useMediaDevices();
+  const availableOutputs = useObservableEagerState(
+    mediaDevices.audioOutput.available$,
+  );
+  const selectedOutput = useObservableEagerState(
+    mediaDevices.audioOutput.selected$,
+  );
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const remoteMembers = useRemoteMembers(matrixRoom);
   const elapsedSeconds = useElapsedSeconds(connected);
+
+  const outputs = useMemo(
+    () =>
+      [...availableOutputs].map(([id, label]) => ({
+        id,
+        label: describeOutputLabel(label, t),
+        kind: outputKindOf(label),
+      })),
+    [availableOutputs, t],
+  );
+  const activeOutput = outputs.find((o) => o.id === selectedOutput?.id);
 
   const phaseLabel = describePhase({
     t,
@@ -109,15 +140,16 @@ export const VoiceLayout: FC<Props> = ({ vm, matrixRoom, muteStates }) => {
         </CircleButton>
         <CircleButton
           label={
-            earpieceMode
-              ? t("voice_layout.regular_call")
-              : t("voice_layout.speakerphone")
+            activeOutput?.label ??
+            t("voice_layout.audio_output", "Audio output")
           }
-          active={!earpieceMode}
-          onClick={audioOutputSwitcher?.switch}
-          disabled={audioOutputSwitcher === null}
+          active={
+            activeOutput !== undefined && activeOutput.kind !== "earpiece"
+          }
+          onClick={() => setPickerOpen(true)}
+          disabled={outputs.length < 2}
         >
-          {earpieceMode ? <VoiceCallIcon /> : <VolumeOnSolidIcon />}
+          {iconForOutputKind(activeOutput?.kind ?? "earpiece")}
         </CircleButton>
         <CircleButton
           label={t("voice_layout.hangup")}
@@ -127,9 +159,140 @@ export const VoiceLayout: FC<Props> = ({ vm, matrixRoom, muteStates }) => {
           <EndCallIcon />
         </CircleButton>
       </div>
+      <AudioOutputPicker
+        open={pickerOpen}
+        outputs={outputs}
+        selectedId={selectedOutput?.id}
+        onSelect={(id) => {
+          mediaDevices.audioOutput.select(id);
+          setPickerOpen(false);
+        }}
+        onDismiss={() => setPickerOpen(false)}
+      />
     </div>
   );
 };
+
+type OutputKind = "earpiece" | "speaker" | "headphones" | "default";
+
+interface OutputOption {
+  id: string;
+  label: string;
+  kind: OutputKind;
+}
+
+interface AudioOutputPickerProps {
+  open: boolean;
+  outputs: OutputOption[];
+  selectedId: string | undefined;
+  onSelect: (id: string) => void;
+  onDismiss: () => void;
+}
+
+const AudioOutputPicker: FC<AudioOutputPickerProps> = ({
+  open,
+  outputs,
+  selectedId,
+  onSelect,
+  onDismiss,
+}) => {
+  const { t } = useTranslation();
+  return (
+    <Modal
+      title={t("voice_layout.audio_output_picker_title", "Audio output")}
+      open={open}
+      onDismiss={onDismiss}
+      hideHeader
+    >
+      <ul className={styles.outputList} role="listbox">
+        {outputs.map((output) => (
+          <OutputRow
+            key={output.id}
+            output={output}
+            selected={output.id === selectedId}
+            onSelect={onSelect}
+          />
+        ))}
+      </ul>
+    </Modal>
+  );
+};
+
+const OutputRow: FC<{
+  output: OutputOption;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}> = ({ output, selected, onSelect }) => {
+  const handle = useCallback(() => onSelect(output.id), [onSelect, output.id]);
+  return (
+    <li>
+      <button
+        type="button"
+        className={styles.outputRow}
+        data-active={selected ? "true" : "false"}
+        onClick={handle}
+        role="option"
+        aria-selected={selected}
+      >
+        <span className={styles.outputIcon} aria-hidden="true">
+          {iconForOutputKind(output.kind)}
+        </span>
+        <span className={styles.outputLabel}>{output.label}</span>
+        {selected && (
+          <span className={styles.outputCheck} aria-hidden="true">
+            <CheckIcon />
+          </span>
+        )}
+      </button>
+    </li>
+  );
+};
+
+function describeOutputLabel(
+  label: AudioOutputDeviceLabel,
+  t: TFunction,
+): string {
+  switch (label.type) {
+    case "speaker":
+      return t("voice_layout.speakerphone");
+    case "earpiece":
+      return t("voice_layout.regular_call");
+    case "name":
+      return label.name;
+    case "default":
+      return label.name ?? t("voice_layout.audio_output_default", "Default");
+    case "number":
+      return t("voice_layout.audio_output_unnamed", "Audio device {{number}}", {
+        number: label.number,
+      });
+  }
+}
+
+function outputKindOf(label: AudioOutputDeviceLabel): OutputKind {
+  switch (label.type) {
+    case "speaker":
+      return "speaker";
+    case "earpiece":
+      return "earpiece";
+    case "name":
+      return "headphones";
+    default:
+      return "default";
+  }
+}
+
+function iconForOutputKind(kind: OutputKind): ReactNode {
+  switch (kind) {
+    case "earpiece":
+      return <EarpieceIcon />;
+    case "speaker":
+      return <VolumeOnSolidIcon />;
+    case "headphones":
+      return <HeadphonesSolidIcon />;
+    case "default":
+      return <VoiceCallIcon />;
+  }
+}
 
 interface CircleButtonProps {
   children: ReactNode;
