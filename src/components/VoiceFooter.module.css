@@ -5,106 +5,14 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE in the repository root for full details.
 */
 
-.layout {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  grid-template-rows: auto auto 1fr auto auto;
-  grid-template-areas:
-    "top"
-    "phase"
-    "avatars"
-    "title"
-    "controls";
-  align-items: center;
-  justify-items: center;
-  padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
-  background: radial-gradient(120% 80% at 50% 0%, #1f2937 0%, #050708 70%);
-  color: #ffffff;
-  overflow: hidden;
-}
-
-.background {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.backgroundImage {
-  position: absolute;
-  inset: -10%;
-  inline-size: 120%;
-  block-size: 120%;
-  object-fit: cover;
-  filter: blur(48px) brightness(0.45) saturate(1.1);
-  opacity: 0.6;
-}
-
-.layout > *:not(.background) {
-  position: relative;
-  z-index: 1;
-}
-
-.top {
-  grid-area: top;
-  block-size: 24px;
-}
-
-.phase {
-  grid-area: phase;
-  font-size: 16px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.8);
-  letter-spacing: 0.01em;
-  margin-block-start: 16px;
-  font-variant-numeric: tabular-nums;
-}
-
-.layout[data-phase="in-call"] .phase {
-  color: #4ade80;
-}
-
-.layout[data-phase="reconnecting"] .phase {
-  color: #f59e0b;
-}
-
-.avatars {
-  grid-area: avatars;
+.footer {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: 100%;
-}
-
-.avatarPair {
-  display: flex;
-  gap: 16px;
-}
-
-.avatarGrid {
-  display: grid;
-  grid-template-columns: repeat(2, auto);
-  gap: 12px;
-}
-
-.title {
-  grid-area: title;
-  font-size: 28px;
-  font-weight: 600;
-  text-align: center;
-  margin: 24px 0 0;
-  max-inline-size: min(90vw, 480px);
-  line-height: 1.2;
-}
-
-.controls {
-  grid-area: controls;
-  display: flex;
-  gap: 32px;
-  padding: 32px 16px;
   align-items: flex-start;
   justify-content: center;
+  gap: 32px;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  inline-size: 100%;
+  pointer-events: auto;
 }
 
 .button {
@@ -115,8 +23,8 @@ Please see LICENSE in the repository root for full details.
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  color: #ffffff;
+  gap: 6px;
+  color: var(--cpd-color-text-on-solid-primary, #ffffff);
   font: inherit;
   cursor: pointer;
 }
@@ -127,10 +35,10 @@ Please see LICENSE in the repository root for full details.
 }
 
 .buttonIcon {
-  inline-size: 64px;
-  block-size: 64px;
+  inline-size: 60px;
+  block-size: 60px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.18);
   display: grid;
   place-items: center;
   transition:
@@ -139,9 +47,9 @@ Please see LICENSE in the repository root for full details.
 }
 
 .buttonIcon svg {
-  inline-size: 28px;
-  block-size: 28px;
-  color: #ffffff;
+  inline-size: 26px;
+  block-size: 26px;
+  color: var(--cpd-color-text-on-solid-primary, #ffffff);
 }
 
 .button:not(:disabled):active .buttonIcon {
@@ -149,25 +57,25 @@ Please see LICENSE in the repository root for full details.
 }
 
 .button[data-active="true"] .buttonIcon {
-  background: #ffffff;
+  background: var(--cpd-color-bg-action-primary-rest, #ffffff);
 }
 
 .button[data-active="true"] .buttonIcon svg {
-  color: #050708;
+  color: var(--cpd-color-text-on-solid-primary-inverted, #050708);
 }
 
 .button[data-variant="danger"] .buttonIcon {
-  background: #ef4444;
+  background: var(--cpd-color-bg-critical-primary, #ef4444);
 }
 
 .button[data-variant="danger"] .buttonIcon svg {
-  color: #ffffff;
+  color: var(--cpd-color-text-on-solid-primary, #ffffff);
 }
 
 .buttonLabel {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--cpd-color-text-secondary, rgba(255, 255, 255, 0.85));
 }
 
 .outputList {

@@ -49,17 +49,12 @@ export interface PipLayoutMedia {
   spotlight: MediaViewModel[];
 }
 
-export interface VoiceLayoutMedia {
-  type: "voice";
-}
-
 export type LayoutMedia =
   | GridLayoutMedia
   | SpotlightLandscapeLayoutMedia
   | SpotlightPortraitLayoutMedia
   | SpotlightExpandedLayoutMedia
   | OneOnOneLayoutMedia
-  | VoiceLayoutMedia
   | PipLayoutMedia;
 
 export interface GridLayout {
@@ -100,10 +95,6 @@ export interface PipLayout {
   spotlight: SpotlightTileViewModel;
 }
 
-export interface VoiceLayout {
-  type: "voice";
-}
-
 /**
  * A layout defining the media tiles present on screen and their visual
  * arrangement.
@@ -114,5 +105,4 @@ export type Layout =
   | SpotlightPortraitLayout
   | SpotlightExpandedLayout
   | OneOnOneLayout
-  | VoiceLayout
   | PipLayout;

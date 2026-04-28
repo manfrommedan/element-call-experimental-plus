@@ -27,7 +27,7 @@ import { logger as rootLogger } from "matrix-js-sdk/lib/logger";
 import { useTranslation } from "react-i18next";
 
 import { Header, LeftNav, RightNav, RoomHeaderInfo } from "../Header";
-import { HeaderStyle, useUrlParams } from "../UrlParams";
+import { HeaderStyle, getUrlParams, useUrlParams } from "../UrlParams";
 import { useCallViewKeyboardShortcuts } from "../useCallViewKeyboardShortcuts";
 import { widget } from "../widget";
 import styles from "./InCallView.module.css";
@@ -57,7 +57,6 @@ import {
   defaultSpotlightAlignment,
 } from "../grid/CallLayout";
 import { makeOneOnOneLayout } from "../grid/OneOnOneLayout";
-import { VoiceLayout } from "../grid/VoiceLayout";
 import { makeSpotlightExpandedLayout } from "../grid/SpotlightExpandedLayout";
 import { makeSpotlightLandscapeLayout } from "../grid/SpotlightLandscapeLayout";
 import { makeSpotlightPortraitLayout } from "../grid/SpotlightPortraitLayout";
@@ -92,6 +91,7 @@ import { type Layout } from "../state/layout-types.ts";
 import { ObservableScope } from "../state/ObservableScope.ts";
 import { useLatest } from "../useLatest.ts";
 import { CallFooter } from "../components/CallFooter.tsx";
+import { VoiceFooter } from "../components/VoiceFooter.tsx";
 import { SettingsIconButton } from "../button/Button.tsx";
 
 const logger = rootLogger.getChild("[InCallView]");
@@ -502,11 +502,6 @@ export const InCallView: FC<InCallViewProps> = ({
   }, [gridBoundsObservable$, spotlightAlignment$, pipAlignment$]);
 
   const renderContent = (): JSX.Element => {
-    if (layout.type === "voice") {
-      return (
-        <VoiceLayout vm={vm} matrixRoom={matrixRoom} muteStates={muteStates} />
-      );
-    }
     if (layout.type === "pip") {
       return (
         <SpotlightTile
@@ -578,8 +573,16 @@ export const InCallView: FC<InCallViewProps> = ({
     />,
   );
 
+  // Phone-style footer for audio-only calls — three primary controls plus
+  // a bottom-sheet audio-output picker — and the standard upstream footer
+  // (mic / camera / share / reactions / settings) for everything else. We
+  // still let video drive the upstream layouts so toggling the camera mid
+  // call (either side) lights up the video tiles automatically.
+  const isAudioCall = getUrlParams().callIntent === "audio";
   // Only hide the settings button if we have an AppBar header and we are showing the header
-  const footer = (
+  const footer = isAudioCall ? (
+    <VoiceFooter vm={vm} muteStates={muteStates} hidden={!showFooter} />
+  ) : (
     <CallFooter
       ref={footerRef}
       hidden={!showFooter}
