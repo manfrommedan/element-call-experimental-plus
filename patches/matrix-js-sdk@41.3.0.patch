@@ -1,0 +1,26 @@
+diff --git a/lib/matrixrtc/MatrixRTCSession.js b/lib/matrixrtc/MatrixRTCSession.js
+index 14334796ce26bc1fad8bbce3daa06ea8dfe91d37..d09865114cf18cda545859dd75d2524a9edf13f7 100644
+--- a/lib/matrixrtc/MatrixRTCSession.js
++++ b/lib/matrixrtc/MatrixRTCSession.js
+@@ -490,7 +490,7 @@ export class MatrixRTCSession extends TypedEventEmitter {
+             rel_type: RelationType.Reference
+           },
+           "sender_ts": Date.now(),
+-          "lifetime": 30000 // 30 seconds
++          "lifetime": 60000 // 60 seconds
+         };
+         if (callIntent) {
+           content["m.call.intent"] = callIntent;
+diff --git a/src/matrixrtc/MatrixRTCSession.ts b/src/matrixrtc/MatrixRTCSession.ts
+index 2866c8250fdb2bfe21fef63ced6b7d9b13ae9c10..9c044cf0d05f239a9abcf6405a9873846f5ce0c8 100644
+--- a/src/matrixrtc/MatrixRTCSession.ts
++++ b/src/matrixrtc/MatrixRTCSession.ts
+@@ -687,7 +687,7 @@ export class MatrixRTCSession extends TypedEventEmitter<
+                     rel_type: RelationType.Reference,
+                 },
+                 "sender_ts": Date.now(),
+-                "lifetime": 30_000, // 30 seconds
++                "lifetime": 60_000, // 60 seconds
+             };
+             if (callIntent) {
+                 content["m.call.intent"] = callIntent;

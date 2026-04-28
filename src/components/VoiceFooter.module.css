@@ -6,13 +6,37 @@ Please see LICENSE in the repository root for full details.
 */
 
 .footer {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--call-view-header-footer-layer);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: var(--cpd-space-10x) var(--cpd-space-4x)
+    calc(var(--cpd-space-6x) + env(safe-area-inset-bottom));
+  inline-size: 100%;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0%,
+    var(--cpd-color-bg-canvas-default) 60%
+  );
+  pointer-events: auto;
+}
+
+.timer {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--cpd-color-text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.row {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  gap: 32px;
-  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-  inline-size: 100%;
-  pointer-events: auto;
+  gap: 24px;
 }
 
 .button {
@@ -24,7 +48,7 @@ Please see LICENSE in the repository root for full details.
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  color: var(--cpd-color-text-on-solid-primary, #ffffff);
+  color: var(--cpd-color-text-primary);
   font: inherit;
   cursor: pointer;
 }
@@ -35,10 +59,11 @@ Please see LICENSE in the repository root for full details.
 }
 
 .buttonIcon {
-  inline-size: 60px;
-  block-size: 60px;
+  inline-size: 56px;
+  block-size: 56px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--cpd-color-bg-subtle-primary);
+  border: 1px solid var(--cpd-color-border-interactive-secondary);
   display: grid;
   place-items: center;
   transition:
@@ -47,9 +72,9 @@ Please see LICENSE in the repository root for full details.
 }
 
 .buttonIcon svg {
-  inline-size: 26px;
-  block-size: 26px;
-  color: var(--cpd-color-text-on-solid-primary, #ffffff);
+  inline-size: 24px;
+  block-size: 24px;
+  color: var(--cpd-color-icon-primary);
 }
 
 .button:not(:disabled):active .buttonIcon {
@@ -57,15 +82,17 @@ Please see LICENSE in the repository root for full details.
 }
 
 .button[data-active="true"] .buttonIcon {
-  background: var(--cpd-color-bg-action-primary-rest, #ffffff);
+  background: var(--cpd-color-icon-primary);
+  border-color: var(--cpd-color-icon-primary);
 }
 
 .button[data-active="true"] .buttonIcon svg {
-  color: var(--cpd-color-text-on-solid-primary-inverted, #050708);
+  color: var(--cpd-color-bg-canvas-default);
 }
 
 .button[data-variant="danger"] .buttonIcon {
-  background: var(--cpd-color-bg-critical-primary, #ef4444);
+  background: var(--cpd-color-bg-critical-primary);
+  border-color: var(--cpd-color-bg-critical-primary);
 }
 
 .button[data-variant="danger"] .buttonIcon svg {
@@ -75,7 +102,7 @@ Please see LICENSE in the repository root for full details.
 .buttonLabel {
   font-size: 12px;
   font-weight: 500;
-  color: var(--cpd-color-text-secondary, rgba(255, 255, 255, 0.85));
+  color: var(--cpd-color-text-secondary);
 }
 
 .outputList {

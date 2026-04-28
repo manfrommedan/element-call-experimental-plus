@@ -236,6 +236,8 @@
     "phase_reconnecting": "Восстановление…",
     "phase_ringing": "Звонит…",
     "regular_call": "Обычный звонок",
-    "speakerphone": "Громкая связь"
+    "speakerphone": "Громкая связь",
+    "video_off": "Включить видео",
+    "video_on": "Камера включена"
   }
 }

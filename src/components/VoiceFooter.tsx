@@ -22,6 +22,8 @@ import EarpieceIcon from "@vector-im/compound-design-tokens/assets/web/icons/ear
 import HeadphonesSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/headphones-solid";
 import MicOffSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/mic-off-solid";
 import MicOnSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/mic-on-solid";
+import VideoCallIcon from "@vector-im/compound-design-tokens/assets/web/icons/video-call";
+import VideoCallSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/video-call-solid";
 import VoiceCallIcon from "@vector-im/compound-design-tokens/assets/web/icons/voice-call";
 import VolumeOnSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/volume-on-solid";
 
@@ -49,7 +51,10 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const { t } = useTranslation();
   const audioEnabled = useObservableEagerState(muteStates.audio.enabled$);
   const toggleAudio = useObservableEagerState(muteStates.audio.toggle$);
+  const videoEnabled = useObservableEagerState(muteStates.video.enabled$);
+  const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
   const participantCount = useObservableEagerState(vm.participantCount$);
+  const elapsedSeconds = useElapsedSeconds(participantCount > 1);
 
   const mediaDevices = useMediaDevices();
   const availableOutputs = useObservableEagerState(
@@ -82,48 +87,77 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
 
   return (
     <div className={styles.footer}>
-      <CircleButton
-        label={
-          audioEnabled
-            ? t("voice_layout.microphone_on")
-            : t("voice_layout.microphone_off")
-        }
-        active={!audioEnabled}
-        onClick={
-          toggleAudio
-            ? () => {
-                haptic("tap");
-                toggleAudio();
-              }
-            : undefined
-        }
-        disabled={toggleAudio === null}
-      >
-        {audioEnabled ? <MicOnSolidIcon /> : <MicOffSolidIcon />}
-      </CircleButton>
-      <CircleButton
-        label={
-          activeOutput?.label ?? t("voice_layout.audio_output", "Audio output")
-        }
-        active={activeOutput !== undefined && activeOutput.kind !== "earpiece"}
-        onClick={() => {
-          haptic("tap");
-          setPickerOpen(true);
-        }}
-        disabled={outputs.length < 2}
-      >
-        {iconForOutputKind(activeOutput?.kind ?? "earpiece")}
-      </CircleButton>
-      <CircleButton
-        label={t("voice_layout.hangup")}
-        variant="danger"
-        onClick={() => {
-          haptic("hangup");
-          vm.hangup();
-        }}
-      >
-        <EndCallIcon />
-      </CircleButton>
+      {participantCount > 1 && (
+        <div className={styles.timer} aria-live="polite">
+          {formatTimer(elapsedSeconds)}
+        </div>
+      )}
+      <div className={styles.row}>
+        <CircleButton
+          label={
+            audioEnabled
+              ? t("voice_layout.microphone_on")
+              : t("voice_layout.microphone_off")
+          }
+          active={!audioEnabled}
+          onClick={
+            toggleAudio
+              ? () => {
+                  haptic("tap");
+                  toggleAudio();
+                }
+              : undefined
+          }
+          disabled={toggleAudio === null}
+        >
+          {audioEnabled ? <MicOnSolidIcon /> : <MicOffSolidIcon />}
+        </CircleButton>
+        <CircleButton
+          label={
+            activeOutput?.label ??
+            t("voice_layout.audio_output", "Audio output")
+          }
+          active={
+            activeOutput !== undefined && activeOutput.kind !== "earpiece"
+          }
+          onClick={() => {
+            haptic("tap");
+            setPickerOpen(true);
+          }}
+          disabled={outputs.length < 2}
+        >
+          {iconForOutputKind(activeOutput?.kind ?? "earpiece")}
+        </CircleButton>
+        <CircleButton
+          label={
+            videoEnabled
+              ? t("voice_layout.video_on", "Camera on")
+              : t("voice_layout.video_off", "Switch to video")
+          }
+          active={videoEnabled}
+          onClick={
+            toggleVideo
+              ? () => {
+                  haptic("tap");
+                  toggleVideo();
+                }
+              : undefined
+          }
+          disabled={toggleVideo === null}
+        >
+          {videoEnabled ? <VideoCallSolidIcon /> : <VideoCallIcon />}
+        </CircleButton>
+        <CircleButton
+          label={t("voice_layout.hangup")}
+          variant="danger"
+          onClick={() => {
+            haptic("hangup");
+            vm.hangup();
+          }}
+        >
+          <EndCallIcon />
+        </CircleButton>
+      </div>
       <AudioOutputPicker
         open={pickerOpen}
         outputs={outputs}
@@ -312,6 +346,34 @@ function haptic(kind: "tap" | "hangup" | "connect"): void {
       navigator.vibrate(25);
       break;
   }
+}
+
+/**
+ * Counts wall-clock seconds since the call became active. Frozen at zero
+ * before that and ticks once a second afterwards.
+ */
+function useElapsedSeconds(active: boolean): number {
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!active) return undefined;
+    setStartedAt((prev) => prev ?? Date.now());
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return (): void => clearInterval(id);
+  }, [active]);
+  if (startedAt === null) return 0;
+  return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+}
+
+function formatTimer(totalSeconds: number): string {
+  const safe = Math.max(0, totalSeconds);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(seconds)}`
+    : `${minutes}:${pad(seconds)}`;
 }
 
 /**
