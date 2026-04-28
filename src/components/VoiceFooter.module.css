@@ -59,6 +59,7 @@ Please see LICENSE in the repository root for full details.
 }
 
 .buttonIcon {
+  position: relative;
   inline-size: 56px;
   block-size: 56px;
   border-radius: 50%;
@@ -69,6 +70,23 @@ Please see LICENSE in the repository root for full details.
   transition:
     background 0.15s ease,
     transform 0.15s ease;
+}
+
+.buttonSpinner {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-block-start-color: var(--cpd-color-icon-primary);
+  border-inline-end-color: var(--cpd-color-icon-primary);
+  animation: voiceFooterSpin 0.8s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes voiceFooterSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .buttonIcon svg {

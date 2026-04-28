@@ -73,6 +73,24 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   useConnectHaptic(participantCount > 1);
   useNotifyHostOnRemoteJoined(participantCount > 1);
 
+  // Camera initialisation costs a noticeable beat (OS permission check + sensor
+  // wake + LiveKit publication), and the video button stays visually idle for
+  // that whole window if we wait on `videoEnabled` alone. Track a separate
+  // "request pending" flag that flips on as soon as the user taps so the
+  // button reads as active immediately and a spinner indicates we're working
+  // on it. Cleared when the actual state catches up, or after a 5 s timeout
+  // so a denied permission doesn't leave the button stuck in pending.
+  const [videoPending, setVideoPending] = useState(false);
+  useEffect(() => {
+    if (videoPending && videoEnabled) setVideoPending(false);
+  }, [videoEnabled, videoPending]);
+  useEffect(() => {
+    if (!videoPending) return undefined;
+    const id = setTimeout(() => setVideoPending(false), 5_000);
+    return (): void => clearTimeout(id);
+  }, [videoPending]);
+  const videoActive = videoEnabled || videoPending;
+
   const outputs = useMemo(
     () =>
       [...availableOutputs].map(([id, label]) => ({
@@ -131,22 +149,24 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
         </CircleButton>
         <CircleButton
           label={
-            videoEnabled
+            videoActive
               ? t("voice_layout.video_on", "Camera on")
               : t("voice_layout.video_off", "Switch to video")
           }
-          active={videoEnabled}
+          active={videoActive}
+          pending={videoPending && !videoEnabled}
           onClick={
             toggleVideo
               ? () => {
                   haptic("tap");
+                  if (!videoEnabled) setVideoPending(true);
                   toggleVideo();
                 }
               : undefined
           }
           disabled={toggleVideo === null}
         >
-          {videoEnabled ? <VideoCallSolidIcon /> : <VideoCallIcon />}
+          {videoActive ? <VideoCallSolidIcon /> : <VideoCallIcon />}
         </CircleButton>
         <CircleButton
           label={t("voice_layout.hangup")}
@@ -188,6 +208,7 @@ interface CircleButtonProps {
   onClick?: () => void;
   active?: boolean;
   disabled?: boolean;
+  pending?: boolean;
   variant?: "default" | "danger";
 }
 
@@ -197,19 +218,23 @@ const CircleButton: FC<CircleButtonProps> = ({
   onClick,
   active,
   disabled,
+  pending,
   variant,
 }) => (
   <button
     type="button"
     className={styles.button}
     data-active={active ? "true" : "false"}
+    data-pending={pending ? "true" : "false"}
     data-variant={variant ?? "default"}
     onClick={onClick}
     disabled={disabled}
+    aria-busy={pending ? "true" : undefined}
     aria-label={label}
   >
     <span className={styles.buttonIcon} aria-hidden="true">
       {children}
+      {pending && <span className={styles.buttonSpinner} aria-hidden="true" />}
     </span>
     <span className={styles.buttonLabel}>{label}</span>
   </button>
