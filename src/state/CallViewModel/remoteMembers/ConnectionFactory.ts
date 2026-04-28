@@ -150,6 +150,11 @@ function generateRoomOption({
       deviceId: devices.audioInput.selected$.value?.id,
       echoCancellation,
       noiseSuppression,
+      // Force WebRTC's automatic gain control on so quiet input is boosted
+      // before it leaves the device — without this, callees on the other
+      // side can sound far away ("шептун из жопы") when they speak softly
+      // or sit further from the mic.
+      autoGainControl: true,
     },
     audioOutput: {
       // When using controlled audio devices, we don't want to set the
