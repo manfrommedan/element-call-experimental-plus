@@ -10,6 +10,7 @@ import { type ComponentType } from "react";
 
 import { type LayoutProps } from "./Grid";
 import { type TileViewModel } from "../state/TileViewModel";
+import { type Behavior } from "../state/Behavior";
 
 export interface Bounds {
   width: number;
@@ -40,6 +41,13 @@ export interface CallLayoutInputs {
    * The alignment of the small picture-in-picture tile, if present.
    */
   pipAlignment$: BehaviorSubject<Alignment>;
+  /**
+   * Whether the local participant is currently publishing video. Used by the
+   * audio-only one-on-one presentation to drop back to the standard
+   * remote-tile + local-PiP layout the moment the user enables their camera,
+   * so they can see their own preview as in any other video call.
+   */
+  localVideoEnabled$?: Behavior<boolean>;
 }
 
 export interface CallLayoutOutputs<Model> {

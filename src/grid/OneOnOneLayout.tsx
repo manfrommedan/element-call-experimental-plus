@@ -14,6 +14,7 @@ import { type CallLayout, arrangeTiles } from "./CallLayout";
 import styles from "./OneOnOneLayout.module.css";
 import { type DragCallback, useUpdateLayout } from "./Grid";
 import { useBehavior } from "../useBehavior";
+import { constant } from "../state/Behavior";
 import { getUrlParams } from "../UrlParams";
 
 /**
@@ -23,6 +24,7 @@ import { getUrlParams } from "../UrlParams";
 export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
   minBounds$,
   pipAlignment$,
+  localVideoEnabled$,
 }) => ({
   scrollingOnTop: false,
 
@@ -40,10 +42,20 @@ export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
       [width, height],
     );
     // Switch the layout into "phone call" presentation when the host has
-    // requested an audio-only call. The active CSS rules drop the local PiP,
-    // expand the spotlight tile to fill the view, and switch the tile chrome
-    // to canvas colours — see OneOnOneLayout.module.css.
-    const audioMode = getUrlParams().callIntent === "audio";
+    // requested an audio-only call AND the local user hasn't yet enabled
+    // their camera. The active CSS rules drop the local PiP, expand the
+    // spotlight tile to fill the view, and switch the tile chrome to canvas
+    // colours — see OneOnOneLayout.module.css.
+    //
+    // The moment the local user toggles video on (mid-call), audio-mode is
+    // released automatically so the standard remote-tile + local-PiP layout
+    // takes over and the user sees their own self-preview again.
+    const fallbackLocalVideoEnabled$ = useMemo(() => constant(false), []);
+    const localVideoEnabled = useBehavior(
+      localVideoEnabled$ ?? fallbackLocalVideoEnabled$,
+    );
+    const audioMode =
+      getUrlParams().callIntent === "audio" && !localVideoEnabled;
 
     const onDragLocalTile: DragCallback = useCallback(
       ({ xRatio, yRatio }) =>

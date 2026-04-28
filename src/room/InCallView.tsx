@@ -491,6 +491,7 @@ export const InCallView: FC<InCallViewProps> = ({
       minBounds$: gridBoundsObservable$,
       spotlightAlignment$,
       pipAlignment$,
+      localVideoEnabled$: muteStates.video.enabled$,
     };
     return {
       grid: makeGridLayout(inputs),
@@ -499,7 +500,7 @@ export const InCallView: FC<InCallViewProps> = ({
       "spotlight-expanded": makeSpotlightExpandedLayout(inputs),
       "one-on-one": makeOneOnOneLayout(inputs),
     };
-  }, [gridBoundsObservable$, spotlightAlignment$, pipAlignment$]);
+  }, [gridBoundsObservable$, spotlightAlignment$, pipAlignment$, muteStates]);
 
   const renderContent = (): JSX.Element => {
     if (layout.type === "pip") {
