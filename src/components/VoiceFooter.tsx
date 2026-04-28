@@ -73,6 +73,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const videoEnabled = useObservableEagerState(muteStates.video.enabled$);
   const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
   const participantCount = useObservableEagerState(vm.participantCount$);
+  const ringing = useObservableEagerState(vm.ringing$);
   const elapsedSeconds = useElapsedSeconds(participantCount > 1);
 
   const mediaDevices = useMediaDevices();
@@ -84,12 +85,14 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   );
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Outgoing-call ringback while we're alone in the room. Stops as soon as a
-  // second participant joins, which matches the moment the remote side picks
-  // up. Stays silent for receivers since they join a room that already has
-  // the caller in it. Upstream's ringtone.mp3 loop is suppressed in InCallView
-  // for audio-intent calls so the two don't double up.
-  useOutgoingRingback(participantCount === 1);
+  // Outgoing-call ringback while the recipient hasn't picked up yet. Driven by
+  // the same `ringing$` signal upstream uses for its ringtone.mp3 loop, so the
+  // two-tone dial tone stops the moment the call is picked up — using
+  // participantCount as a proxy was racy because the LiveKit room can take a
+  // beat to register the new participant after the recipient answers, leaving
+  // the caller hearing ringback over a connected line. Upstream's mp3 loop is
+  // suppressed in InCallView for audio-intent calls so the two don't double up.
+  useOutgoingRingback(ringing);
   useConnectHaptic(participantCount > 1);
   useNotifyHostOnRemoteJoined(participantCount > 1);
 
