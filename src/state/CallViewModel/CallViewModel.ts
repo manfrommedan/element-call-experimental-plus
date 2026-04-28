@@ -1141,12 +1141,20 @@ export function createCallViewModel$(
     map((spotlight) => ({ type: "pip", spotlight })),
   );
 
+  // Phone-style audio call layout: full-screen avatars + 3 controls. The
+  // payload itself is empty — the renderer reads the live state directly
+  // from this view model.
+  const voiceLayoutMedia$: Observable<LayoutMedia> = of({
+    type: "voice" as const,
+  });
+
   /**
    * The media to be used to produce a layout.
    */
   const layoutMedia$ = scope.behavior<LayoutMedia>(
     windowMode$.pipe(
       switchMap((windowMode) => {
+        if (getUrlParams().callIntent === "audio") return voiceLayoutMedia$;
         switch (windowMode) {
           case "normal":
             return gridMode$.pipe(
@@ -1243,6 +1251,14 @@ export function createCallViewModel$(
               break;
             case "pip":
               [layout, newTiles] = pipLayout(media, prevTiles);
+              break;
+            case "voice":
+              // Voice layout doesn't render media tiles; the avatar stack is
+              // sourced directly from the room. Keep the previous tile store
+              // intact so we don't tear down RTC subscriptions on every
+              // layout-media tick.
+              layout = { type: "voice" };
+              newTiles = prevTiles;
               break;
           }
 

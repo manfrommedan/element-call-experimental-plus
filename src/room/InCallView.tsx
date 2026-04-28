@@ -57,6 +57,7 @@ import {
   defaultSpotlightAlignment,
 } from "../grid/CallLayout";
 import { makeOneOnOneLayout } from "../grid/OneOnOneLayout";
+import { VoiceLayout } from "../grid/VoiceLayout";
 import { makeSpotlightExpandedLayout } from "../grid/SpotlightExpandedLayout";
 import { makeSpotlightLandscapeLayout } from "../grid/SpotlightLandscapeLayout";
 import { makeSpotlightPortraitLayout } from "../grid/SpotlightPortraitLayout";
@@ -501,6 +502,11 @@ export const InCallView: FC<InCallViewProps> = ({
   }, [gridBoundsObservable$, spotlightAlignment$, pipAlignment$]);
 
   const renderContent = (): JSX.Element => {
+    if (layout.type === "voice") {
+      return (
+        <VoiceLayout vm={vm} matrixRoom={matrixRoom} muteStates={muteStates} />
+      );
+    }
     if (layout.type === "pip") {
       return (
         <SpotlightTile

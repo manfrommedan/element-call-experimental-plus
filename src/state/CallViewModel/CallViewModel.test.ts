@@ -144,13 +144,18 @@ export interface PipLayoutSummary {
   spotlight: string[];
 }
 
+export interface VoiceLayoutSummary {
+  type: "voice";
+}
+
 export type LayoutSummary =
   | GridLayoutSummary
   | SpotlightLandscapeLayoutSummary
   | SpotlightPortraitLayoutSummary
   | SpotlightExpandedLayoutSummary
   | OneOnOneLayoutSummary
-  | PipLayoutSummary;
+  | PipLayoutSummary
+  | VoiceLayoutSummary;
 
 function summarizeLayout$(l$: Observable<Layout>): Observable<LayoutSummary> {
   return l$.pipe(
@@ -203,6 +208,8 @@ function summarizeLayout$(l$: Observable<Layout>): Observable<LayoutSummary> {
               spotlight: spotlight.map((vm) => vm.id),
             })),
           );
+        case "voice":
+          return constant({ type: l.type });
       }
     }),
     // Sometimes there can be multiple (synchronous) updates per frame. We only

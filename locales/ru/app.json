@@ -219,5 +219,19 @@
     "muted_for_me": "Приглушить для меня",
     "volume": "Громкость",
     "waiting_for_media": "В ожидании медиа..."
+  },
+  "voice_layout": {
+    "hangup": "Завершить",
+    "microphone_off": "Без звука",
+    "microphone_on": "Микрофон",
+    "participants_count_one": "{{count}} участник",
+    "participants_count_few": "{{count}} участника",
+    "participants_count_many": "{{count}} участников",
+    "participants_count_other": "{{count}} участника",
+    "phase_connecting": "Соединение…",
+    "phase_reconnecting": "Восстановление…",
+    "phase_ringing": "Звонит…",
+    "regular_call": "Обычный звонок",
+    "speakerphone": "Громкая связь"
   }
 }
