@@ -79,6 +79,7 @@ export const VoiceLayout: FC<Props> = ({ vm, matrixRoom, muteStates }) => {
   const elapsedSeconds = useElapsedSeconds(connected);
 
   useConnectHaptic(connected);
+  useOutgoingRingback(ringing && !connected);
 
   const outputs = useMemo(
     () =>
@@ -462,6 +463,69 @@ function useConnectHaptic(connected: boolean): void {
       setHasFired(true);
     }
   }, [connected, hasFired]);
+}
+
+/**
+ * Classic outgoing dial-tone (ringback) generated with the Web Audio API:
+ * two superposed sine waves at 440 Hz and 480 Hz (the North-American
+ * "precise" ringback pair), repeating in a 2 s on / 4 s off cadence until
+ * the call connects or ends. Plays through the system call audio output —
+ * Element Call's existing `join_call` sample fires only on the remote
+ * party joining and is too quiet to serve as a wait indicator.
+ */
+function useOutgoingRingback(active: boolean): void {
+  useEffect(() => {
+    if (!active) return undefined;
+    const AudioCtx = window.AudioContext ?? window.webkitAudioContext;
+    if (!AudioCtx) return undefined;
+    const ctx: AudioContext = new AudioCtx();
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const playPulse = (): void => {
+      if (cancelled) return;
+      try {
+        const start = ctx.currentTime;
+        const duration = 2;
+        const gainNode = ctx.createGain();
+        gainNode.connect(ctx.destination);
+        // Short fade in/out to avoid clicks.
+        gainNode.gain.setValueAtTime(0, start);
+        gainNode.gain.linearRampToValueAtTime(0.5, start + 0.05);
+        gainNode.gain.setValueAtTime(0.5, start + duration - 0.05);
+        gainNode.gain.linearRampToValueAtTime(0, start + duration);
+        for (const frequency of [440, 480]) {
+          const osc = ctx.createOscillator();
+          osc.type = "sine";
+          osc.frequency.value = frequency;
+          osc.connect(gainNode);
+          osc.start(start);
+          osc.stop(start + duration);
+        }
+      } catch {
+        // AudioContext can land in a closed state mid-call; bail silently.
+      }
+      // Total cycle is 6 s (2 on + 4 off) per Bell System spec.
+      timeoutId = setTimeout(playPulse, 6_000);
+    };
+
+    // Most mobile browsers block the AudioContext until a user gesture; the
+    // call button tap qualifies, but the context can still come up suspended.
+    void ctx.resume().catch(() => undefined);
+    playPulse();
+
+    return (): void => {
+      cancelled = true;
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      void ctx.close().catch(() => undefined);
+    };
+  }, [active]);
+}
+
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+  }
 }
 
 function useElapsedSeconds(connected: boolean): number {
