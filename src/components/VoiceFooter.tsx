@@ -39,6 +39,14 @@ import styles from "./VoiceFooter.module.css";
  * never resolve, so without a cap the spinner would spin forever. */
 const VIDEO_TOGGLE_PENDING_TIMEOUT_MS = 5_000;
 
+/** Audio-only calls skip the lobby, so the very first toggle of the video
+ * button races the Android CAMERA permission dialog: the first getUserMedia
+ * call rejects before the user has accepted, and the second press is what
+ * actually enables video. Re-issue the toggle on a short interval until the
+ * camera comes up — once permission is granted the next retry's
+ * getUserMedia resolves and videoEnabled flips, stopping the loop. */
+const VIDEO_TOGGLE_RETRY_INTERVAL_MS = 300;
+
 /** Vibration durations for the three haptic flavours (ms). */
 const HAPTIC_TAP_MS = 15;
 const HAPTIC_CONNECT_MS = 25;
@@ -109,12 +117,23 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   }, [videoEnabled, videoPending]);
   useEffect(() => {
     if (!videoPending) return undefined;
-    const id = setTimeout(
+    // Audio-only calls skip the lobby, so the WebView never pre-warmed the
+    // CAMERA runtime permission. The first toggle race-loses against the
+    // Android permission dialog and the deferred getUserMedia rejects. Poll
+    // toggleVideo on a short interval; the moment permission lands the next
+    // retry's getUserMedia resolves and videoEnabled flips, ending the loop.
+    const retryId = setInterval(() => {
+      if (!videoEnabled && toggleVideo) toggleVideo();
+    }, VIDEO_TOGGLE_RETRY_INTERVAL_MS);
+    const giveUpId = setTimeout(
       () => setVideoPending(false),
       VIDEO_TOGGLE_PENDING_TIMEOUT_MS,
     );
-    return (): void => clearTimeout(id);
-  }, [videoPending]);
+    return (): void => {
+      clearInterval(retryId);
+      clearTimeout(giveUpId);
+    };
+  }, [videoPending, videoEnabled, toggleVideo]);
   const videoActive = videoEnabled || videoPending;
 
   const outputs = useMemo(
