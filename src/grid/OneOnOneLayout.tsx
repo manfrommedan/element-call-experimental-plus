@@ -54,8 +54,12 @@ export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
     const localVideoEnabled = useBehavior(
       localVideoEnabled$ ?? fallbackLocalVideoEnabled$,
     );
+    // Audio mode is only entered when the embedding host has opted into the
+    // phone-style voice layout (and the local user hasn't enabled video).
+    // Plain audio-intent calls without that opt-in keep the standard
+    // 1:1 upstream layout.
     const audioMode =
-      getUrlParams().callIntent === "audio" && !localVideoEnabled;
+      getUrlParams().phoneVoiceLayout && !localVideoEnabled;
 
     const onDragLocalTile: DragCallback = useCallback(
       ({ xRatio, yRatio }) =>

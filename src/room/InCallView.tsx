@@ -239,10 +239,13 @@ export const InCallView: FC<InCallViewProps> = ({
     () => void toggleRaisedHand(),
   );
 
-  // Whether the embedding host opened this call with audio intent. Drives the
-  // phone-style VoiceFooter swap and suppresses upstream UI bits (lobby
-  // ringtone, earpiece overlay) that conflict with that presentation.
-  const isAudioCall = getUrlParams().callIntent === "audio";
+  // Whether the embedding host opted into the phone-style 1:1 voice call
+  // layout (set via Element X Labs → "Phone-style voice calls"). When true,
+  // we swap in our VoiceFooter and suppress upstream UI bits (lobby
+  // ringtone, earpiece overlay) that would otherwise conflict with it.
+  // When false, we leave Element Call's standard audio-call presentation
+  // untouched even if the call itself is audio-only.
+  const phoneVoiceLayout = getUrlParams().phoneVoiceLayout;
 
   const ringing = useBehavior(vm.ringing$);
   const audioParticipants = useBehavior(vm.livekitRoomItems$);
@@ -266,12 +269,12 @@ export const InCallView: FC<InCallViewProps> = ({
     throw fatalCallError;
   }
 
-  // While ringing, loop the ringtone — but skip it for audio-intent calls,
-  // where VoiceFooter synthesises its own classic two-tone dial tone and the
-  // mp3 loop would double up.
+  // While ringing, loop the ringtone — but skip it when the phone-style voice
+  // layout is active, where VoiceFooter synthesises its own classic two-tone
+  // dial tone and the mp3 loop would double up.
   useEffect((): void | (() => void) => {
     const audio = latestPickupPhaseAudio.current;
-    if (ringing && audio && !isAudioCall) {
+    if (ringing && audio && !phoneVoiceLayout) {
       const endSound = audio.playSoundLooping(
         "waiting",
         audio.soundDuration["waiting"] ?? 1,
@@ -282,7 +285,7 @@ export const InCallView: FC<InCallViewProps> = ({
         });
       };
     }
-  }, [ringing, latestPickupPhaseAudio, isAudioCall]);
+  }, [ringing, latestPickupPhaseAudio, phoneVoiceLayout]);
 
   const onViewClick = useCallback(
     (e: ReactMouseEvent) => {
@@ -434,22 +437,24 @@ export const InCallView: FC<InCallViewProps> = ({
   );
 
   // The earpiece overlay is the upstream "phone-at-your-ear" splash that hides
-  // the media tiles when the user routes audio to the built-in earpiece. In an
-  // audio-only call our phone-style VoiceFooter is already the primary UI and
-  // there are no media tiles worth covering, so the overlay is redundant — it
-  // would just obscure our footer behind a generic upsell to "go back to
-  // video". Suppress it whenever the call URL declares audio intent.
+  // the media tiles when the user routes audio to the built-in earpiece. With
+  // our phone-style VoiceFooter as the primary UI there are no media tiles
+  // worth covering, so the overlay is redundant — it would just obscure our
+  // footer behind a generic upsell to "go back to video". Suppress it only
+  // when the host has opted into the phone-style layout.
   const earpieceOverlay = (
     <EarpieceOverlay
-      show={earpieceMode && !reconnecting && !isAudioCall}
+      show={earpieceMode && !reconnecting && !phoneVoiceLayout}
       onBackToVideoPressed={audioOutputSwitcher?.switch}
     />
   );
 
   // If the reconnecting toast or earpiece overlay obscures the media tiles, we
-  // need to remove them from the accessibility tree and block focus. Audio
-  // calls intentionally leave earpieceMode unhandled here for the same reason.
-  const contentObscured = reconnecting || (earpieceMode && !isAudioCall);
+  // need to remove them from the accessibility tree and block focus. Phone-
+  // style voice calls intentionally leave earpieceMode unhandled here for the
+  // same reason.
+  const contentObscured =
+    reconnecting || (earpieceMode && !phoneVoiceLayout);
 
   const Tile = useMemo(
     () =>
@@ -588,13 +593,13 @@ export const InCallView: FC<InCallViewProps> = ({
     />,
   );
 
-  // Phone-style footer for audio-only calls — three primary controls plus
-  // a bottom-sheet audio-output picker — and the standard upstream footer
-  // (mic / camera / share / reactions / settings) for everything else. We
-  // still let video drive the upstream layouts so toggling the camera mid
+  // Phone-style footer for opted-in 1:1 voice calls — three primary controls
+  // plus a bottom-sheet audio-output picker — and the standard upstream
+  // footer (mic / camera / share / reactions / settings) for everything else.
+  // We still let video drive the upstream layouts so toggling the camera mid
   // call (either side) lights up the video tiles automatically.
   // Only hide the settings button if we have an AppBar header and we are showing the header
-  const footer = isAudioCall ? (
+  const footer = phoneVoiceLayout ? (
     <VoiceFooter vm={vm} muteStates={muteStates} hidden={!showFooter} />
   ) : (
     <CallFooter
