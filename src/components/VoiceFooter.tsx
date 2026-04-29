@@ -161,13 +161,14 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   if (hidden) return null;
 
   return (
-    <div className={styles.footer}>
+    <>
       {participantCount > 1 && (
         <div className={styles.timer} aria-live="polite">
           {formatTimer(elapsedSeconds)}
         </div>
       )}
-      <div className={styles.row}>
+      <div className={styles.footer}>
+        <div className={styles.row}>
         <CircleButton
           label={
             audioEnabled
@@ -246,7 +247,8 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
         }}
         onDismiss={() => setPickerOpen(false)}
       />
-    </div>
+      </div>
+    </>
   );
 };
 

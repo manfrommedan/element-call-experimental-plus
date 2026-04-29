@@ -25,13 +25,22 @@ Please see LICENSE in the repository root for full details.
 }
 
 .timer {
-  /* Matches Compound's body-md text used elsewhere in the call UI so the */
-  /* in-call counter reads as part of the same design vocabulary instead  */
-  /* of standing out. tabular-nums keeps the digits a fixed width while   */
-  /* the seconds tick. */
+  /* Phone-app style placement: pinned just under the AppBar (which already */
+  /* shows the recipient's name) so the screen reads "Alice / 00:23" top-  */
+  /* to-bottom like iOS Phone or the stock Android dialer. Matches          */
+  /* Compound's body-md / secondary-text vocabulary so it sits inside the   */
+  /* design system rather than standing out. tabular-nums keeps the digits  */
+  /* a fixed width while the seconds tick. */
+  position: fixed;
+  inset-block-start: calc(64px + env(safe-area-inset-top));
+  inset-inline: 0;
+  margin-block-start: var(--cpd-space-2x);
+  text-align: center;
   font: var(--cpd-font-body-md-medium);
   color: var(--cpd-color-text-secondary);
   font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: var(--call-view-header-footer-layer);
 }
 
 .row {
