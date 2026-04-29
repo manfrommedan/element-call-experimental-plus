@@ -25,19 +25,19 @@ Please see LICENSE in the repository root for full details.
 }
 
 .timer {
-  /* Phone-app style placement: pinned just under the AppBar (which already */
-  /* shows the recipient's name) so the screen reads "Alice / 00:23" top-  */
-  /* to-bottom like iOS Phone or the stock Android dialer. Matches          */
-  /* Compound's body-md / secondary-text vocabulary so it sits inside the   */
-  /* design system rather than standing out. tabular-nums keeps the digits  */
-  /* a fixed width while the seconds tick. */
+  /* iOS-style placement: pinned just under the AppBar (which already shows */
+  /* the recipient's name) so the screen reads "Alice / 00:23" top to       */
+  /* bottom like the stock iOS Phone app. Compound body-lg / semibold +     */
+  /* primary text colour so it's visible at arm's length without dominating */
+  /* the avatar tile underneath. tabular-nums keeps the digits a fixed      */
+  /* width while the seconds tick.                                          */
   position: fixed;
   inset-block-start: calc(64px + env(safe-area-inset-top));
   inset-inline: 0;
   margin-block-start: var(--cpd-space-2x);
   text-align: center;
-  font: var(--cpd-font-body-md-medium);
-  color: var(--cpd-color-text-secondary);
+  font: var(--cpd-font-body-lg-semibold);
+  color: var(--cpd-color-text-primary);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
   z-index: var(--call-view-header-footer-layer);
@@ -55,6 +55,10 @@ Please see LICENSE in the repository root for full details.
   background: transparent;
   border: 0;
   padding: 0;
+  /* Fix the column width so long labels (e.g. "Bluetooth Headset") don't */
+  /* stretch one button and shove the rest of the row off-centre. The     */
+  /* number lines up with the 48 px icon plus a little breathing room.    */
+  inline-size: var(--cpd-space-18x);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -135,6 +139,12 @@ Please see LICENSE in the repository root for full details.
   font-size: 12px;
   font-weight: 500;
   color: var(--cpd-color-text-secondary);
+  /* Wide enough labels (Bluetooth device names, "Switch to video") don't */
+  /* push the column out — they get truncated to the column width.        */
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .outputList {
