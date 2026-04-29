@@ -183,14 +183,18 @@ Please see LICENSE in the repository root for full details.
    * declaration applies on every browser, then the modern one with
    * env() + max() takes precedence on Chromium 79+ (Android 9+). */
   padding-inline-start: 0;
-  /* 24 px is the Material Design floor for keeping a touch target out
-   * of the system gesture inset on the right edge (right-swipe = back
-   * on most modern Android nav schemes). Bump higher if the device
-   * reports a larger safe-area-inset-right (curved displays, etc.).
-   * Two-step fallback for older WebViews: the static declaration
-   * applies everywhere; the env()+max() one overrides on Chromium 79+. */
-  padding-inline-end: var(--cpd-space-6x);
-  padding-inline-end: max(var(--cpd-space-6x), env(safe-area-inset-right));
+  /* 16 px hits the Material Design floor for an edge-anchored surface
+   * (Bottom App Bar / FAB rest there) and the iOS Human Interface
+   * Guidelines `default-margin` for landscape. Tap targets within
+   * 16 px don't collide with the system gesture inset — the OS
+   * distinguishes a tap from a swipe-from-edge. Curved displays
+   * automatically widen the gap through env(safe-area-inset-right).
+   *
+   * Two-step fallback: the static declaration applies on every
+   * browser, the env()+max() one overrides on Chromium 79+ (Android
+   * 9+) so older WebViews still get a sensible floor. */
+  padding-inline-end: var(--cpd-space-4x);
+  padding-inline-end: max(var(--cpd-space-4x), env(safe-area-inset-right));
   background: none;
 }
 
