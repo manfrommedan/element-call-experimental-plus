@@ -55,10 +55,12 @@ Please see LICENSE in the repository root for full details.
   background: transparent;
   border: 0;
   padding: 0;
-  /* Fix the column width so long labels (e.g. "Bluetooth Headset") don't */
-  /* stretch one button and shove the rest of the row off-centre. The     */
-  /* number lines up with the 48 px icon plus a little breathing room.    */
-  inline-size: var(--cpd-space-18x);
+  /* Each column claims an equal share of the row's available width so a */
+  /* long label (e.g. a Bluetooth device name) can't stretch one button  */
+  /* and shove the others sideways. min-inline-size: 0 lets the inner    */
+  /* label truncate to the column instead of forcing the column to grow. */
+  flex: 1 1 0;
+  min-inline-size: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
