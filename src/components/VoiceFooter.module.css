@@ -178,9 +178,19 @@ Please see LICENSE in the repository root for full details.
   align-items: flex-end;
   padding-block: var(--cpd-space-4x);
   /* Hug the right edge: minimal breathing-room on devices without a
-   * curved bezel / notch, plus the platform safe-area-inset so the dock
-   * never tucks under hardware furniture on phones that have it. */
-  padding-inline: 0 max(var(--cpd-space-1x), env(safe-area-inset-right));
+   * curved bezel / notch, plus the platform safe-area-inset on phones
+   * that have one. Two-step fallback for older WebViews: the simple
+   * declaration applies on every browser, then the modern one with
+   * env() + max() takes precedence on Chromium 79+ (Android 9+). */
+  padding-inline-start: 0;
+  /* 24 px is the Material Design floor for keeping a touch target out
+   * of the system gesture inset on the right edge (right-swipe = back
+   * on most modern Android nav schemes). Bump higher if the device
+   * reports a larger safe-area-inset-right (curved displays, etc.).
+   * Two-step fallback for older WebViews: the static declaration
+   * applies everywhere; the env()+max() one overrides on Chromium 79+. */
+  padding-inline-end: var(--cpd-space-6x);
+  padding-inline-end: max(var(--cpd-space-6x), env(safe-area-inset-right));
   background: none;
 }
 
