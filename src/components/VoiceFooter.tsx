@@ -149,11 +149,21 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
 
   const outputs = useMemo(
     () =>
-      [...availableOutputs].map(([id, label]) => ({
-        id,
-        label: describeOutputLabel(label, t),
-        kind: outputKindOf(label),
-      })),
+      [...availableOutputs].map(([id, label]) => {
+        const kind = outputKindOf(label);
+        return {
+          id,
+          // Full per-device description shown in the output-picker sheet so
+          // the user can disambiguate between several connected devices.
+          label: describeOutputLabel(label, t),
+          // Short generic label shown directly under the row button. We
+          // never put device-specific names here — a long Bluetooth vendor
+          // string would either truncate awkwardly or push the row off the
+          // screen.
+          kindLabel: genericLabelForOutputKind(kind, t),
+          kind,
+        };
+      }),
     [availableOutputs, t],
   );
   const activeOutput = outputs.find((o) => o.id === selectedOutput?.id);
@@ -190,7 +200,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
         </CircleButton>
         <CircleButton
           label={
-            activeOutput?.label ??
+            activeOutput?.kindLabel ??
             t("voice_layout.audio_output", "Audio output")
           }
           active={
@@ -395,6 +405,24 @@ function outputKindOf(label: AudioOutputDeviceLabel): OutputKind {
       return "headphones";
     default:
       return "default";
+  }
+}
+
+/**
+ * Short generic label rendered directly under the row button. Never
+ * carries device-specific names — those go in the output picker sheet —
+ * so a long Bluetooth vendor string can never push the row off-centre.
+ */
+function genericLabelForOutputKind(kind: OutputKind, t: TFunction): string {
+  switch (kind) {
+    case "speaker":
+      return t("voice_layout.speakerphone");
+    case "earpiece":
+      return t("voice_layout.regular_call");
+    case "headphones":
+      return t("voice_layout.audio_output_headphones", "Headphones");
+    case "default":
+      return t("voice_layout.audio_output_default", "Default");
   }
 }
 
