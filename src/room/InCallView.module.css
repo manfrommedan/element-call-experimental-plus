@@ -93,11 +93,16 @@ Please see LICENSE in the repository root for full details.
  */
 .inRoom[data-phone-voice-landscape="true"] {
   display: grid;
-  /* Viewport-aware floors: each column is a fraction of the available
-   * width but never collapses below an absolute minimum. `min(...)` lets
-   * the floor itself shrink on truly tiny windows (e.g. a phone in
-   * split-screen mode) so we never overflow horizontally — at the cost
-   * of a tighter dock, which still fits the icon column. */
+  /* Two-step fallback for old WebViews:
+   * - The first declaration uses plain pixel floors and applies on
+   *   every browser that understands `minmax`, all the way back to
+   *   Chromium 57 (Android 7).
+   * - The second declaration with `min(...)` lets the floors shrink
+   *   on truly tiny windows (foldables, split-screen) but only
+   *   applies on Chromium 79+ (Android 9). On older WebViews the
+   *   second declaration is invalid and ignored, leaving the safe
+   *   fallback in place. */
+  grid-template-columns: minmax(160px, 1fr) minmax(200px, 1fr);
   grid-template-columns:
     minmax(min(160px, 40vw), 1fr)
     minmax(min(200px, 50vw), 1fr);
