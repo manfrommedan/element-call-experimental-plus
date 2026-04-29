@@ -399,6 +399,12 @@ export function createCallViewModel$(
   reactionsSubject$: Observable<Record<string, ReactionInfo>>,
   trackProcessorState$: Behavior<ProcessorState>,
 ): CallViewModel {
+  // URL params are constant for the lifetime of the call (they're set by the
+  // embedding host when the widget loads). Hoisting the read here lets every
+  // observable below reference the same snapshot rather than calling
+  // getUrlParams() repeatedly.
+  const urlParams = getUrlParams();
+
   const client = matrixRoom.client;
   const userId = client.getUserId();
   const deviceId = client.getDeviceId();
@@ -953,8 +959,24 @@ export function createCallViewModel$(
             m.type === "user" && m.local,
         );
         if (!localUserMedia) return of(undefined);
-        return localUserMedia.alwaysShow$.pipe(
-          map((alwaysShow) => (alwaysShow ? localUserMedia : undefined)),
+        // The local self-tile is suppressed in two cases:
+        //   1. The user opted out of "Always show myself" (alwaysShow$ false).
+        //   2. The host requested a phone-style 1:1 voice call (the
+        //      phoneVoiceLayout URL flag) and the local user hasn't enabled
+        //      their camera — a self-preview makes no sense in a "phone call"
+        //      presentation. We gate this here at the model level rather than
+        //      in each layout's CSS, because window-mode dictates which of
+        //      OneOnOneLayout / SpotlightExpandedLayout / SpotlightLandscape /
+        //      SpotlightPortraitLayout actually renders the pip — the model
+        //      is the only place the rule lives once.
+        return combineLatest([
+          localUserMedia.alwaysShow$,
+          muteStates.video.enabled$,
+        ]).pipe(
+          map(([alwaysShow, videoEnabled]) => {
+            if (urlParams.phoneVoiceLayout && !videoEnabled) return undefined;
+            return alwaysShow ? localUserMedia : undefined;
+          }),
         );
       }),
     ),
@@ -1328,7 +1350,6 @@ export function createCallViewModel$(
     windowMode$.pipe(map((mode) => mode !== "pip" && mode !== "flat")),
   );
 
-  const urlParams = getUrlParams();
   const showFooterUrlParams = !(
     urlParams.header === HeaderStyle.None && urlParams.showControls === false
   );
@@ -1346,6 +1367,12 @@ export function createCallViewModel$(
             // from appearing properly. They happen less often if we never hide
             // the footer.
             if (isFirefox()) return of(true);
+            // Mobile (Android / iOS) doesn't have a hover signal, so the
+            // tap-to-reveal interaction model from below is awkward — users
+            // get a landscape phone with controls hidden until they tap the
+            // tile. Keep the footer always visible on touch platforms; the
+            // tap-then-fade behaviour stays for desktop where hover works.
+            if (platform !== "desktop") return of(true);
             // Show/hide the footer in response to interactions
             return merge(
               screenTap$.pipe(map(() => "tap screen" as const)),
