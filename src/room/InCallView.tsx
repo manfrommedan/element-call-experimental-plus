@@ -27,6 +27,7 @@ import { logger as rootLogger } from "matrix-js-sdk/lib/logger";
 import { useTranslation } from "react-i18next";
 
 import { Header, LeftNav, RightNav, RoomHeaderInfo } from "../Header";
+import { platform } from "../Platform";
 import { HeaderStyle, useUrlParams } from "../UrlParams";
 import { useCallViewKeyboardShortcuts } from "../useCallViewKeyboardShortcuts";
 import { widget } from "../widget";
@@ -636,14 +637,16 @@ export const InCallView: FC<InCallViewProps> = ({
     <div
       className={styles.inRoom}
       // WhatsApp-style landscape split — when phone-style voice mode is
-      // active and the window is in `flat` mode (a phone in landscape
-      // orientation, or a similarly short-and-wide window), the
-      // accompanying CSS rule moves the spotlight tile into the left half
-      // and pins the VoiceFooter to the right half. The data attribute is
-      // omitted for every other case so the standard column flow stays
-      // pixel-identical to upstream.
+      // active, the platform is mobile (Android / iOS), and the window is
+      // in `flat` mode (a phone in landscape orientation), the accompanying
+      // CSS rule moves the spotlight tile into the left half and pins the
+      // VoiceFooter to the right half. The platform gate keeps a desktop
+      // user who shrinks their browser window to landscape-phone-shape on
+      // the upstream column flow.
       data-phone-voice-landscape={
-        phoneVoiceMode && windowMode === "flat" ? "true" : undefined
+        phoneVoiceMode && windowMode === "flat" && platform !== "desktop"
+          ? "true"
+          : undefined
       }
       ref={containerRef}
       onClick={onViewClick}

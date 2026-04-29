@@ -150,23 +150,21 @@ Please see LICENSE in the repository root for full details.
 }
 
 /*
- * Landscape phone layout: the WhatsApp-style split puts our footer in the
- * right column, where horizontal real estate is tight and the icons are
- * already self-explanatory. Drop the under-button labels and let the icons
- * carry the meaning. This media query only fires when the host has opted
- * into the phone-style mode (because VoiceFooter is the only thing it ever
- * styles, and VoiceFooter is the only footer rendered in that mode).
+ * Landscape phone-style split layout: the right column is tight, and the
+ * icons are already self-explanatory (mic / speaker / video / hang up).
+ * Drop the under-button labels in that mode and let the icons carry the
+ * meaning. We gate on the same `data-phone-voice-landscape` attribute
+ * InCallView writes on its root — which is itself gated on phoneVoiceMode
+ * AND a flat window AND a mobile platform — so a desktop user who shrinks
+ * their browser to landscape-phone-shape never has labels disappear.
  */
-@media (orientation: landscape) and (max-height: 600px) {
-  .buttonLabel {
-    display: none;
-  }
+[data-phone-voice-landscape="true"] .buttonLabel {
+  display: none;
+}
 
-  /* Without labels under each icon, vertically centre the icons in the
-   * column instead of leaving them anchored to the top. */
-  .button {
-    justify-content: center;
-  }
+/* Without labels, centre the icons in the now-shorter button column. */
+[data-phone-voice-landscape="true"] .button {
+  justify-content: center;
 }
 
 .outputList {
