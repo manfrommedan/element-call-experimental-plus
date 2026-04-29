@@ -1,5 +1,13 @@
 # Element Call
 
+> ⚠️ **Unofficial experimental fork.**
+> This is a community-maintained build that is **not affiliated with, endorsed by, or
+> coordinated with Element Hq Ltd. or the Element Call team**. It carries an opt-in
+> phone-style 1:1 voice call UI that the embedding host activates with the
+> `phoneVoiceLayout=true` URL flag; without it Element Call behaves exactly like upstream.
+> Works as is, at your own risk. Please don't kick us —
+> see [EXPERIMENTS.md](EXPERIMENTS.md).
+
 [![Chat](https://img.shields.io/matrix/webrtc:matrix.org)](https://matrix.to/#/#webrtc:matrix.org)
 [![Localazy](https://img.shields.io/endpoint?url=https%3A%2F%2Fconnect.localazy.com%2Fstatus%2Felement-call%2Fdata%3Fcontent%3Dall%26title%3Dlocalazy%26logo%3Dtrue)](https://localazy.com/p/element-call)
 [![License](https://img.shields.io/github/license/element-hq/element-call)](LICENSE-AGPL-3.0)
