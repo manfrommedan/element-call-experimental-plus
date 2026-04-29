@@ -136,7 +136,7 @@ export interface SpotlightExpandedLayoutSummary {
 export interface OneOnOneLayoutSummary {
   type: "one-on-one";
   spotlight: string;
-  pip: string;
+  pip?: string;
 }
 
 export interface PipLayoutSummary {
@@ -189,11 +189,11 @@ function summarizeLayout$(l$: Observable<Layout>): Observable<LayoutSummary> {
           );
         case "one-on-one":
           return combineLatest(
-            [l.spotlight.media$, l.pip.media$],
+            [l.spotlight.media$, l.pip?.media$ ?? constant(undefined)],
             (spotlight, pip) => ({
               type: l.type,
               spotlight: spotlight.id,
-              pip: pip.id,
+              pip: pip?.id,
             }),
           );
         case "pip":
@@ -1390,4 +1390,5 @@ describe.each([
       );
     });
   });
+
 });

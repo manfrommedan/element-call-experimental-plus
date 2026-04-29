@@ -510,7 +510,6 @@ export const InCallView: FC<InCallViewProps> = ({
       minBounds$: gridBoundsObservable$,
       spotlightAlignment$,
       pipAlignment$,
-      localVideoEnabled$: muteStates.video.enabled$,
     };
     return {
       grid: makeGridLayout(inputs),

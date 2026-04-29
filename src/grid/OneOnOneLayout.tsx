@@ -14,17 +14,18 @@ import { type CallLayout, arrangeTiles } from "./CallLayout";
 import styles from "./OneOnOneLayout.module.css";
 import { type DragCallback, useUpdateLayout } from "./Grid";
 import { useBehavior } from "../useBehavior";
-import { constant } from "../state/Behavior";
-import { getUrlParams } from "../UrlParams";
 
 /**
  * An implementation of the "one-on-one" layout, in which the remote participant
  * is shown at maximum size, overlaid by a small view of the local participant.
+ *
+ * When the model omits `pip` (phone-style 1:1 voice mode, gated upstream in
+ * CallViewModel), the spotlight tile is expanded to fill the layer and the
+ * local self-tile is not rendered at all.
  */
 export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
   minBounds$,
   pipAlignment$,
-  localVideoEnabled$,
 }) => ({
   scrollingOnTop: false,
 
@@ -41,25 +42,13 @@ export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
       () => arrangeTiles(width, height, 1),
       [width, height],
     );
-    // Switch the layout into "phone call" presentation when the host has
-    // requested an audio-only call AND the local user hasn't yet enabled
-    // their camera. The active CSS rules drop the local PiP, expand the
-    // spotlight tile to fill the view, and switch the tile chrome to canvas
-    // colours — see OneOnOneLayout.module.css.
-    //
-    // The moment the local user toggles video on (mid-call), audio-mode is
-    // released automatically so the standard remote-tile + local-PiP layout
-    // takes over and the user sees their own self-preview again.
-    const fallbackLocalVideoEnabled$ = useMemo(() => constant(false), []);
-    const localVideoEnabled = useBehavior(
-      localVideoEnabled$ ?? fallbackLocalVideoEnabled$,
-    );
-    // Audio mode is only entered when the embedding host has opted into the
-    // phone-style voice layout (and the local user hasn't enabled video).
-    // Plain audio-intent calls without that opt-in keep the standard
-    // 1:1 upstream layout.
-    const audioMode =
-      getUrlParams().phoneVoiceLayout && !localVideoEnabled;
+    // The model-level pip gate (see CallViewModel.localUserMediaForPip$ and
+    // oneOnOneLayoutMedia$) is the single source of truth for whether the
+    // self-tile renders. Reflect "no pip" in the layout chrome too: paint
+    // the spotlight tile across the whole view and let the avatar grow to
+    // phone-call proportions, rather than keeping the desktop-style remote
+    // + local-PiP arrangement that assumes both tiles are visible.
+    const audioMode = model.pip === undefined;
 
     const onDragLocalTile: DragCallback = useCallback(
       ({ xRatio, yRatio }) =>
@@ -83,14 +72,16 @@ export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
           className={styles.container}
           style={{ width: tileWidth, height: tileHeight }}
         >
-          <Slot
-            className={classNames(styles.slot, styles.local)}
-            id={model.pip.id}
-            model={model.pip}
-            onDrag={onDragLocalTile}
-            data-block-alignment={pipAlignmentValue.block}
-            data-inline-alignment={pipAlignmentValue.inline}
-          />
+          {model.pip && (
+            <Slot
+              className={classNames(styles.slot, styles.local)}
+              id={model.pip.id}
+              model={model.pip}
+              onDrag={onDragLocalTile}
+              data-block-alignment={pipAlignmentValue.block}
+              data-inline-alignment={pipAlignmentValue.inline}
+            />
+          )}
         </Slot>
       </div>
     );

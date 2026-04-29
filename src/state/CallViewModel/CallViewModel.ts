@@ -377,6 +377,19 @@ export interface CallViewModel {
    * Shortcut for not requireing to parse and combine connectionState.matrix and connectionState.livekit
    */
   connected$: Behavior<boolean>;
+
+  /**
+   * `true` while the call should be presented as a phone-style 1:1 voice
+   * call: the embedding host has set the `phoneVoiceLayout` URL flag and the
+   * local user hasn't enabled their camera. Layouts and components consume
+   * this single signal instead of re-deriving the same condition from URL
+   * params + mute state on their own.
+   *
+   * Re-emits `false` the moment the local user toggles video on, so the
+   * standard Element Call presentation takes back over without leaving the
+   * call.
+   */
+  phoneVoiceMode$: Behavior<boolean>;
 }
 
 /**
@@ -949,6 +962,21 @@ export function createCallViewModel$(
    * Local user media suitable for displaying in a PiP (undefined if not found
    * or if user prefers to not see themselves).
    */
+  // Derived "phone-style 1:1 voice call" mode flag. The embedding host opts
+  // in via the `phoneVoiceLayout` URL parameter; the moment the local user
+  // enables their camera we drop the mode automatically so the standard
+  // Element Call presentation takes back over. Layouts and components
+  // (incl. pip suppression below) read from this single source instead of
+  // re-deriving the same condition each time.
+  const phoneVoiceMode$ = scope.behavior<boolean>(
+    muteStates.video.enabled$.pipe(
+      map(
+        (videoEnabled) =>
+          urlParams.phoneVoiceLayout === true && !videoEnabled,
+      ),
+    ),
+  );
+
   const localUserMediaForPip$ = scope.behavior<
     LocalUserMediaViewModel | undefined
   >(
@@ -959,24 +987,19 @@ export function createCallViewModel$(
             m.type === "user" && m.local,
         );
         if (!localUserMedia) return of(undefined);
-        // The local self-tile is suppressed in two cases:
-        //   1. The user opted out of "Always show myself" (alwaysShow$ false).
-        //   2. The host requested a phone-style 1:1 voice call (the
-        //      phoneVoiceLayout URL flag) and the local user hasn't enabled
-        //      their camera — a self-preview makes no sense in a "phone call"
-        //      presentation. We gate this here at the model level rather than
-        //      in each layout's CSS, because window-mode dictates which of
-        //      OneOnOneLayout / SpotlightExpandedLayout / SpotlightLandscape /
-        //      SpotlightPortraitLayout actually renders the pip — the model
-        //      is the only place the rule lives once.
+        // The local self-tile is suppressed when the user opted out of
+        // "Always show myself" (alwaysShow$ false) or when the call is in
+        // phone-style mode. Gating here at the model level guarantees every
+        // layout that consumes spotlightAndPip$ (SpotlightExpandedLayout,
+        // SpotlightPortraitLayout, etc.) gets the right behaviour without
+        // duplicating the rule into each layout's CSS.
         return combineLatest([
           localUserMedia.alwaysShow$,
-          muteStates.video.enabled$,
+          phoneVoiceMode$,
         ]).pipe(
-          map(([alwaysShow, videoEnabled]) => {
-            if (urlParams.phoneVoiceLayout && !videoEnabled) return undefined;
-            return alwaysShow ? localUserMedia : undefined;
-          }),
+          map(([alwaysShow, phoneVoice]) =>
+            !phoneVoice && alwaysShow ? localUserMedia : undefined,
+          ),
         );
       }),
     ),
@@ -1131,11 +1154,16 @@ export function createCallViewModel$(
             );
 
             if (remote !== undefined)
-              return of({
-                type: "one-on-one" as const,
-                spotlight: remote,
-                pip: local,
-              });
+              return phoneVoiceMode$.pipe(
+                map((phoneVoice) => ({
+                  type: "one-on-one" as const,
+                  spotlight: remote,
+                  // Suppress the local pip in phone-style mode so the
+                  // OneOnOneLayout matches the model-level rule applied to
+                  // the other layouts via spotlightAndPip$.
+                  pip: phoneVoice ? undefined : local,
+                })),
+              );
 
             // If there's no other user media in the call (could still happen in
             // this branch due to the duplicate tiles option), we could possibly
@@ -1654,6 +1682,7 @@ export function createCallViewModel$(
     reconnecting$: localMembership.reconnecting$,
     livekitRoomItems$,
     connected$: localMembership.connected$,
+    phoneVoiceMode$,
   };
 }
 

@@ -45,12 +45,12 @@ Please see LICENSE in the repository root for full details.
 }
 
 /*
- * Audio-only mode (callIntent === "audio"): paint the spotlight tile across
- * the whole call view, drop the local PiP, and switch the tile background to
- * the canvas colour so the avatar reads as the dominant element instead of a
- * thumbnail floating inside a darker tile. The avatar inside the tile is
- * sized off the tile dimensions, so simply expanding the container makes it
- * grow to phone-call proportions without touching the Tile component.
+ * Phone-style 1:1 voice mode: gated on `model.pip === undefined` (see
+ * OneOnOneLayout.tsx and CallViewModel.localUserMediaForPip$). The spotlight
+ * tile paints across the whole layer, the avatar inside the tile grows to
+ * phone-call proportions, and the tile chrome adopts the canvas colour so
+ * the avatar reads as the dominant element instead of a thumbnail floating
+ * inside a darker tile.
  */
 .layer.audioMode {
   --video-tile-background: var(--cpd-color-bg-canvas-default);
@@ -60,8 +60,4 @@ Please see LICENSE in the repository root for full details.
 .layer.audioMode .container {
   inline-size: 100% !important;
   block-size: 100% !important;
-}
-
-.layer.audioMode .local {
-  display: none;
 }

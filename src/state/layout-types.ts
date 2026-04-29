@@ -41,7 +41,12 @@ export interface SpotlightExpandedLayoutMedia {
 export interface OneOnOneLayoutMedia {
   type: "one-on-one";
   spotlight: UserMediaViewModel;
-  pip: LocalUserMediaViewModel | RingingMediaViewModel;
+  /**
+   * Local self-tile rendered as picture-in-picture next to the remote.
+   * Optional — `undefined` when phone-style 1:1 voice mode is active, in
+   * which case the layout renders just the spotlight.
+   */
+  pip?: LocalUserMediaViewModel | RingingMediaViewModel;
 }
 
 export interface PipLayoutMedia {
@@ -87,7 +92,7 @@ export interface SpotlightExpandedLayout {
 export interface OneOnOneLayout {
   type: "one-on-one";
   spotlight: GridTileViewModel;
-  pip: GridTileViewModel;
+  pip?: GridTileViewModel;
 }
 
 export interface PipLayout {
