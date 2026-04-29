@@ -241,6 +241,15 @@ export interface UrlConfiguration {
   noiseSuppression?: boolean;
 
   callIntent?: RTCCallIntent;
+
+  /**
+   * Whether to render 1:1 voice calls in a phone-style classic layout
+   * (mute / speaker / video / hang up) instead of the standard footer
+   * and lobby. The embedding host opts in by passing
+   * `?phoneVoiceLayout=true` (or in the URL fragment query). Defaults
+   * to `false`, so omitting the flag preserves upstream behaviour.
+   */
+  phoneVoiceLayout: boolean;
 }
 
 // If you need to add a new flag to this interface, prefer a name that describes
@@ -377,6 +386,7 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     sendNotificationType: "notification",
     autoLeaveWhenOthersLeft: false,
     waitForCallPickup: false,
+    phoneVoiceLayout: false,
   };
   switch (intent) {
     case UserIntent.StartNewCall:
@@ -432,6 +442,7 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
         sendNotificationType: undefined,
         autoLeaveWhenOthersLeft: false,
         waitForCallPickup: false,
+        phoneVoiceLayout: false,
       };
   }
 
@@ -485,6 +496,7 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     autoLeaveWhenOthersLeft: parser.getFlag("autoLeave"),
     noiseSuppression: parser.getFlagParam("noiseSuppression", true),
     echoCancellation: parser.getFlagParam("echoCancellation", true),
+    phoneVoiceLayout: parser.getFlag("phoneVoiceLayout"),
   };
 
   // Log the final configuration for debugging purposes.

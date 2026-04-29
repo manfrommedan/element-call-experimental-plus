@@ -391,6 +391,21 @@ describe("UrlParams", () => {
     });
   });
 
+  describe("phoneVoiceLayout", () => {
+    it("defaults to false", () => {
+      expect(computeUrlParams().phoneVoiceLayout).toBe(false);
+    });
+
+    it("is parsed", () => {
+      expect(
+        computeUrlParams("?phoneVoiceLayout=true").phoneVoiceLayout,
+      ).toBe(true);
+      expect(
+        computeUrlParams("?phoneVoiceLayout=false").phoneVoiceLayout,
+      ).toBe(false);
+    });
+  });
+
   describe("header", () => {
     it("uses header if provided", () => {
       expect(computeUrlParams("?header=app_bar&hideHeader=true").header).toBe(
