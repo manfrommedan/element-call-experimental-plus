@@ -93,7 +93,12 @@ Please see LICENSE in the repository root for full details.
  */
 .inRoom[data-phone-voice-landscape="true"] {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* `minmax` floors guarantee both columns stay readable on edge-case
+   * widths (foldables in landscape, tablets in split-screen, etc.).
+   * The spotlight floor (160 px) keeps the avatar-tile from collapsing
+   * to a sliver; the dock floor (200 px) is wide enough for the pill
+   * (~80 px wide content + breathing room) plus its drop shadow. */
+  grid-template-columns: minmax(160px, 1fr) minmax(200px, 1fr);
   grid-template-rows: auto 1fr;
   /* Header stretches across both columns; the spotlight tile sits in the
    * left half of the second row, the VoiceFooter in the right half. */
