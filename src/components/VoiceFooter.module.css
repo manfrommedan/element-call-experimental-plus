@@ -150,19 +150,34 @@ Please see LICENSE in the repository root for full details.
 }
 
 /*
- * Landscape phone-style split layout: the right column is tight, and the
- * icons are already self-explanatory (mic / speaker / video / hang up).
- * Drop the under-button labels in that mode and let the icons carry the
- * meaning. We gate on the same `data-phone-voice-landscape` attribute
- * InCallView writes on its root — which is itself gated on phoneVoiceMode
- * AND a flat window AND a mobile platform — so a desktop user who shrinks
- * their browser to landscape-phone-shape never has labels disappear.
+ * Landscape phone-style split layout: the right column is tall and narrow,
+ * so stack the four buttons vertically instead of squeezing them into a
+ * horizontal row. Each row of the stack gets the full column width — the
+ * label fits beneath the icon comfortably without truncation.
+ *
+ * Gate on the same `data-phone-voice-landscape` attribute InCallView
+ * writes on its root, which is itself gated on phoneVoiceMode AND a flat
+ * window AND a mobile platform. So a desktop user who shrinks their
+ * browser to landscape-phone-shape never sees this rearranged layout.
  */
+[data-phone-voice-landscape="true"] .footer {
+  /* Vertically center the column inside the right grid cell. */
+  justify-content: center;
+}
+
+[data-phone-voice-landscape="true"] .row {
+  flex-direction: column;
+  gap: var(--cpd-space-6x);
+  align-items: center;
+}
+
+/* No labels in landscape — the column is narrow, the icons are
+ * self-explanatory, and the vertical stack reads cleaner without text
+ * slipping between rows. */
 [data-phone-voice-landscape="true"] .buttonLabel {
   display: none;
 }
 
-/* Without labels, centre the icons in the now-shorter button column. */
 [data-phone-voice-landscape="true"] .button {
   justify-content: center;
 }
