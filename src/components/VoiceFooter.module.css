@@ -55,11 +55,12 @@ Please see LICENSE in the repository root for full details.
   background: transparent;
   border: 0;
   padding: 0;
-  /* Each column claims an equal share of the row's available width so a */
-  /* long label (e.g. a Bluetooth device name) can't stretch one button  */
-  /* and shove the others sideways. min-inline-size: 0 lets the inner    */
-  /* label truncate to the column instead of forcing the column to grow. */
-  flex: 1 1 0;
+  /* Flex behaviour comes from the surrounding row via a CSS variable —
+   * row-mode (the portrait default) wants `1 1 0` so each column claims
+   * an equal share, column-mode (the landscape dock) wants `0 0 auto` so
+   * each button stays at icon-column-width. min-inline-size: 0 lets a
+   * long label truncate inside its share rather than expand it. */
+  flex: var(--voice-footer-button-flex, 1 1 0);
   min-inline-size: 0;
   display: flex;
   flex-direction: column;
@@ -176,16 +177,23 @@ Please see LICENSE in the repository root for full details.
 
 /* The button-row collapses into a vertical icon column wrapped in a
  * pill-shaped surface — reads as a floating dock instead of icons
- * orphaned in the right pane. We use the primary subtle canvas
- * (one notch above the buttons' own subtle-secondary background)
- * so the circular icon backgrounds stay visible against the pill
- * rather than blending into it. A soft drop shadow gives the dock
- * a sense of elevation against the spotlight tile.
+ * orphaned in the right pane. We use the primary subtle canvas (one
+ * notch above the buttons' own subtle-secondary fill) so the circular
+ * icon backgrounds stay visible against the pill rather than blending
+ * into it; a soft drop shadow gives the dock a sense of elevation
+ * against the spotlight tile.
  *
- * `opacity` transition smooths the appear/disappear when phone-voice
- * mode toggles (camera on/off mid-call). The grid layout reflow itself
- * can't be transitioned — display: grid → display: flex is an instant
- * change — but fading the pill prevents the dock from popping in/out. */
+ * Both the enter and exit are smoothed via `transition` on every
+ * landscape-only property. Toggling `data-phone-voice-landscape` on the
+ * ancestor moves these from their portrait defaults to the dock values
+ * (or back); the .row element itself stays mounted, so transition
+ * picks up automatically. flex-direction can't be transitioned —
+ * the row-to-column reflow is the unavoidable visual snap — but the
+ * surrounding pill morphs in/out softly enough that the snap reads as
+ * intentional rather than a glitch.
+ *
+ * The flex-behaviour cascade is driven by a CSS variable on .row, see
+ * the `.button { flex: var(...) }` declaration above for context. */
 [data-phone-voice-landscape="true"] .row {
   flex-direction: column;
   gap: var(--cpd-space-6x);
@@ -194,35 +202,25 @@ Please see LICENSE in the repository root for full details.
   background: var(--cpd-color-bg-subtle-primary);
   border-radius: 999px;
   box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
-  animation: voiceFooterDockEnter 200ms ease-out;
+  transform: scale(1);
+  /* Tell child buttons to stop stretching — see `.button` for context. */
+  --voice-footer-button-flex: 0 0 auto;
 }
 
-@keyframes voiceFooterDockEnter {
-  from {
-    opacity: 0;
-    transform: scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Respect the user's reduced-motion preference. Drop the
- * scale/opacity animation entirely — accessibility over polish. */
-@media (prefers-reduced-motion: reduce) {
-  [data-phone-voice-landscape="true"] .row {
-    animation: none;
-  }
-}
-
-/* Override the row-mode `flex: 1 1 0` from the base button rule so each
- * button stays at its natural icon-column-width instead of stretching
- * to consume the dock's vertical space. Without this fix the pill
- * would balloon to 600+ px tall on a landscape phone. */
-[data-phone-voice-landscape="true"] .button {
-  flex: 0 0 auto;
-  justify-content: center;
+.row {
+  /* 150 ms hits the snappy-but-perceivable sweet spot for short UI
+   * transitions; longer feels sluggish on a fast-tap. transform is
+   * GPU-accelerated, the rest are paint-only and cheap on small
+   * surfaces like this row. will-change tells the engine to prepare
+   * a compositor layer ahead of time so the first frame doesn't
+   * stall on jank. */
+  transition:
+    background 150ms ease-out,
+    border-radius 150ms ease-out,
+    padding 150ms ease-out,
+    box-shadow 150ms ease-out,
+    transform 150ms ease-out;
+  will-change: transform, background;
 }
 
 /* Inside the dock the per-button border becomes visual noise — the
@@ -230,6 +228,25 @@ Please see LICENSE in the repository root for full details.
  * subtle-secondary fill so the icons retain their own affordance. */
 [data-phone-voice-landscape="true"] .buttonIcon {
   border-color: transparent;
+}
+
+[data-phone-voice-landscape="true"] .button {
+  justify-content: center;
+}
+
+/* Respect the user's reduced-motion preference. Drop every transition
+ * in this stylesheet — the pill morph, the button :active scale, the
+ * audio-output button background change. Accessibility over polish. */
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .buttonIcon,
+  .outputRow {
+    transition: none;
+  }
+
+  .button:not(:disabled):active .buttonIcon {
+    transform: none;
+  }
 }
 
 /* No labels under the icons in landscape — the column is narrow and

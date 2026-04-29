@@ -93,12 +93,14 @@ Please see LICENSE in the repository root for full details.
  */
 .inRoom[data-phone-voice-landscape="true"] {
   display: grid;
-  /* `minmax` floors guarantee both columns stay readable on edge-case
-   * widths (foldables in landscape, tablets in split-screen, etc.).
-   * The spotlight floor (160 px) keeps the avatar-tile from collapsing
-   * to a sliver; the dock floor (200 px) is wide enough for the pill
-   * (~80 px wide content + breathing room) plus its drop shadow. */
-  grid-template-columns: minmax(160px, 1fr) minmax(200px, 1fr);
+  /* Viewport-aware floors: each column is a fraction of the available
+   * width but never collapses below an absolute minimum. `min(...)` lets
+   * the floor itself shrink on truly tiny windows (e.g. a phone in
+   * split-screen mode) so we never overflow horizontally — at the cost
+   * of a tighter dock, which still fits the icon column. */
+  grid-template-columns:
+    minmax(min(160px, 40vw), 1fr)
+    minmax(min(200px, 50vw), 1fr);
   grid-template-rows: auto 1fr;
   /* Header stretches across both columns; the spotlight tile sits in the
    * left half of the second row, the VoiceFooter in the right half. */
