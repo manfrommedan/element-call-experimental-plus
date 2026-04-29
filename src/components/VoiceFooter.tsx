@@ -58,8 +58,17 @@ const RINGBACK_FREQUENCIES_HZ = [440, 480] as const;
 /** Bell-System cadence: 2 s tone followed by 4 s of silence. */
 const RINGBACK_PULSE_DURATION_S = 2;
 const RINGBACK_CADENCE_MS = 6_000;
-const RINGBACK_GAIN = 0.5;
-const RINGBACK_RAMP_S = 0.05;
+/**
+ * Shared gain applied to the sum of both oscillators. The 440 + 480 Hz pair
+ * beats at 40 Hz, so their instantaneous sum peaks at 2× a single sine's
+ * amplitude. With both oscillators feeding one gain node at 0.35 the combined
+ * peak caps at ~0.70 — safely below the destination's [-1, 1] clipping
+ * threshold even after browser-side mixing, which removes the high-frequency
+ * crackle that came from grazing clipping at the previous 0.5 setting.
+ */
+const RINGBACK_GAIN = 0.35;
+/** Envelope ramp at pulse start/end. Smooths osc.start/stop discontinuities. */
+const RINGBACK_RAMP_S = 0.08;
 
 interface Props {
   vm: CallViewModel;
@@ -68,11 +77,13 @@ interface Props {
 }
 
 /**
- * Phone-style footer for audio-only calls: three primary controls
+ * Phone-style footer for opted-in 1:1 voice calls: three primary controls
  * (microphone toggle, audio-output picker, hangup) plus light haptic
  * feedback on every tap. Replaces the standard {@link CallFooter} when the
- * call URL carries `callIntent === "audio"` so the rest of the in-call UI
- * (avatars, member tiles, auto video upgrade) remains the upstream layout.
+ * embedding host passes `phoneVoiceLayout=true` in the call URL — which the
+ * Element X Labs toggle ("Phone-style voice calls") opts into. The rest of
+ * the in-call UI (avatars, member tiles, auto video upgrade) remains the
+ * upstream layout.
  */
 export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const { t } = useTranslation();
