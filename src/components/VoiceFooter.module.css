@@ -149,6 +149,26 @@ Please see LICENSE in the repository root for full details.
   white-space: nowrap;
 }
 
+/*
+ * Landscape phone layout: the WhatsApp-style split puts our footer in the
+ * right column, where horizontal real estate is tight and the icons are
+ * already self-explanatory. Drop the under-button labels and let the icons
+ * carry the meaning. This media query only fires when the host has opted
+ * into the phone-style mode (because VoiceFooter is the only thing it ever
+ * styles, and VoiceFooter is the only footer rendered in that mode).
+ */
+@media (orientation: landscape) and (max-height: 600px) {
+  .buttonLabel {
+    display: none;
+  }
+
+  /* Without labels under each icon, vertically centre the icons in the
+   * column instead of leaving them anchored to the top. */
+  .button {
+    justify-content: center;
+  }
+}
+
 .outputList {
   list-style: none;
   margin: 0;

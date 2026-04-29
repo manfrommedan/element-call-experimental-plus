@@ -27,7 +27,7 @@ import { logger as rootLogger } from "matrix-js-sdk/lib/logger";
 import { useTranslation } from "react-i18next";
 
 import { Header, LeftNav, RightNav, RoomHeaderInfo } from "../Header";
-import { HeaderStyle, getUrlParams, useUrlParams } from "../UrlParams";
+import { HeaderStyle, useUrlParams } from "../UrlParams";
 import { useCallViewKeyboardShortcuts } from "../useCallViewKeyboardShortcuts";
 import { widget } from "../widget";
 import styles from "./InCallView.module.css";
@@ -239,13 +239,11 @@ export const InCallView: FC<InCallViewProps> = ({
     () => void toggleRaisedHand(),
   );
 
-  // Whether the embedding host opted into the phone-style 1:1 voice call
-  // layout (set via Element X Labs → "Phone-style voice calls"). When true,
-  // we swap in our VoiceFooter and suppress upstream UI bits (lobby
-  // ringtone, earpiece overlay) that would otherwise conflict with it.
-  // When false, we leave Element Call's standard audio-call presentation
-  // untouched even if the call itself is audio-only.
-  const phoneVoiceLayout = getUrlParams().phoneVoiceLayout;
+  // Phone-style 1:1 voice mode signal — `true` while the host opted in via
+  // the `phoneVoiceLayout` URL flag and the local user hasn't enabled their
+  // camera. Sourced from CallViewModel rather than re-derived here so the
+  // UI tracks the same boolean every layout downstream of it sees.
+  const phoneVoiceMode = useBehavior(vm.phoneVoiceMode$);
 
   const ringing = useBehavior(vm.ringing$);
   const audioParticipants = useBehavior(vm.livekitRoomItems$);
@@ -274,7 +272,7 @@ export const InCallView: FC<InCallViewProps> = ({
   // dial tone and the mp3 loop would double up.
   useEffect((): void | (() => void) => {
     const audio = latestPickupPhaseAudio.current;
-    if (ringing && audio && !phoneVoiceLayout) {
+    if (ringing && audio && !phoneVoiceMode) {
       const endSound = audio.playSoundLooping(
         "waiting",
         audio.soundDuration["waiting"] ?? 1,
@@ -285,7 +283,7 @@ export const InCallView: FC<InCallViewProps> = ({
         });
       };
     }
-  }, [ringing, latestPickupPhaseAudio, phoneVoiceLayout]);
+  }, [ringing, latestPickupPhaseAudio, phoneVoiceMode]);
 
   const onViewClick = useCallback(
     (e: ReactMouseEvent) => {
@@ -444,7 +442,7 @@ export const InCallView: FC<InCallViewProps> = ({
   // when the host has opted into the phone-style layout.
   const earpieceOverlay = (
     <EarpieceOverlay
-      show={earpieceMode && !reconnecting && !phoneVoiceLayout}
+      show={earpieceMode && !reconnecting && !phoneVoiceMode}
       onBackToVideoPressed={audioOutputSwitcher?.switch}
     />
   );
@@ -454,7 +452,7 @@ export const InCallView: FC<InCallViewProps> = ({
   // style voice calls intentionally leave earpieceMode unhandled here for the
   // same reason.
   const contentObscured =
-    reconnecting || (earpieceMode && !phoneVoiceLayout);
+    reconnecting || (earpieceMode && !phoneVoiceMode);
 
   const Tile = useMemo(
     () =>
@@ -598,7 +596,7 @@ export const InCallView: FC<InCallViewProps> = ({
   // We still let video drive the upstream layouts so toggling the camera mid
   // call (either side) lights up the video tiles automatically.
   // Only hide the settings button if we have an AppBar header and we are showing the header
-  const footer = phoneVoiceLayout ? (
+  const footer = phoneVoiceMode ? (
     <VoiceFooter vm={vm} muteStates={muteStates} hidden={!showFooter} />
   ) : (
     <CallFooter
@@ -637,6 +635,16 @@ export const InCallView: FC<InCallViewProps> = ({
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
     <div
       className={styles.inRoom}
+      // WhatsApp-style landscape split — when phone-style voice mode is
+      // active and the window is in `flat` mode (a phone in landscape
+      // orientation, or a similarly short-and-wide window), the
+      // accompanying CSS rule moves the spotlight tile into the left half
+      // and pins the VoiceFooter to the right half. The data attribute is
+      // omitted for every other case so the standard column flow stays
+      // pixel-identical to upstream.
+      data-phone-voice-landscape={
+        phoneVoiceMode && windowMode === "flat" ? "true" : undefined
+      }
       ref={containerRef}
       onClick={onViewClick}
       onPointerMove={onPointerMove}
@@ -658,7 +666,11 @@ export const InCallView: FC<InCallViewProps> = ({
       {reconnectingToast}
       {earpieceOverlay}
       <ReactionsOverlay vm={vm} />
-      {footer}
+      {/* Wrapper exists so the WhatsApp-style landscape split (driven by */}
+      {/* `data-phone-voice-landscape` on `.inRoom`) has a single grid cell */}
+      {/* to bind the footer to without reaching across module boundaries. */}
+      {/* `display: contents` keeps it a no-op in every other layout. */}
+      <div className={styles.footerSlot}>{footer}</div>
       {layout.type !== "pip" && (
         <>
           <RageshakeRequestModal {...rageshakeRequestModalProps} />

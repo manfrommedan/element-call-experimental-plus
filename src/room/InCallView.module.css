@@ -71,3 +71,65 @@ Please see LICENSE in the repository root for full details.
   position: relative;
   flex-grow: 1;
 }
+
+/*
+ * Footer wrapper. `display: contents` makes it invisible to layout (the
+ * VoiceFooter inside behaves as if it were a direct child of `.inRoom`) so
+ * the upstream column flow is byte-for-byte identical. The wrapper is only
+ * promoted to a real grid item by the WhatsApp-style landscape rule below.
+ */
+.footerSlot {
+  display: contents;
+}
+
+/*
+ * Phone-style 1:1 voice mode in landscape. Lays the call view out as a
+ * horizontal split — spotlight tile (avatar of the remote) on the left,
+ * VoiceFooter (controls) on the right — so the screen reads like the iOS
+ * Phone or the stock Android dialer when the phone is rotated. Activated
+ * only when `phoneVoiceMode$ === true` AND `windowMode === "flat"`, set as
+ * `data-phone-voice-landscape="true"` on the root in InCallView; never
+ * affects upstream Element Call deployments.
+ */
+.inRoom[data-phone-voice-landscape="true"] {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr;
+  /* Header stretches across both columns; the spotlight tile sits in the
+   * left half of the second row, the VoiceFooter in the right half. */
+  grid-template-areas:
+    "header header"
+    "spotlight footer";
+  overflow: hidden;
+}
+
+.inRoom[data-phone-voice-landscape="true"] > .header {
+  grid-area: header;
+}
+
+.inRoom[data-phone-voice-landscape="true"] > .fixedGrid,
+.inRoom[data-phone-voice-landscape="true"] > .scrollingGrid {
+  grid-area: spotlight;
+  inline-size: auto;
+  block-size: auto;
+  position: relative;
+}
+
+/* The grid layouts position their tile children with `position: absolute;
+ * top: 0`, which assumes a 100%-of-window parent. Re-anchor those absolute
+ * children to the spotlight grid cell instead. */
+.inRoom[data-phone-voice-landscape="true"] > .fixedGrid > *,
+.inRoom[data-phone-voice-landscape="true"] > .scrollingGrid > * {
+  position: absolute;
+  inset: 0;
+}
+
+/* Promote the footer wrapper out of `display: contents` so it can be
+ * placed in the right column. The VoiceFooter inside still uses its own
+ * sticky-bottom positioning — perfectly compatible because its sticky
+ * context becomes the grid cell. */
+.inRoom[data-phone-voice-landscape="true"] > .footerSlot {
+  display: flex;
+  flex-direction: column;
+  grid-area: footer;
+}
