@@ -160,20 +160,37 @@ Please see LICENSE in the repository root for full details.
  * window AND a mobile platform. So a desktop user who shrinks their
  * browser to landscape-phone-shape never sees this rearranged layout.
  */
+/* The footer fills the entire right grid cell so its own
+ * justify-content can vertically centre the icon column — without
+ * `flex: 1` the footer would only be as tall as its content, leaving
+ * the buttons orphaned at the top of the cell. We also disarm the
+ * sticky-bottom positioning that the portrait layout uses, since
+ * sticky behaves oddly inside a CSS-grid track. */
 [data-phone-voice-landscape="true"] .footer {
-  /* Vertically center the column inside the right grid cell. */
+  position: static;
+  flex: 1;
   justify-content: center;
+  padding: var(--cpd-space-4x);
+  background: none;
 }
 
+/* The button-row collapses into a vertical icon column wrapped in a
+ * pill-shaped surface — reads as a floating dock instead of icons
+ * orphaned in the right pane. The surface uses Compound's subtle
+ * canvas colour so it sits one layer deep without competing with
+ * the avatar tile in the left column. */
 [data-phone-voice-landscape="true"] .row {
   flex-direction: column;
   gap: var(--cpd-space-6x);
   align-items: center;
+  padding: var(--cpd-space-4x) var(--cpd-space-3x);
+  background: var(--cpd-color-bg-subtle-secondary);
+  border-radius: 999px;
 }
 
-/* No labels in landscape — the column is narrow, the icons are
- * self-explanatory, and the vertical stack reads cleaner without text
- * slipping between rows. */
+/* No labels under the icons in landscape — the column is narrow and
+ * the icons (mic / speaker / video / hang up) are unambiguous on
+ * their own. */
 [data-phone-voice-landscape="true"] .buttonLabel {
   display: none;
 }
