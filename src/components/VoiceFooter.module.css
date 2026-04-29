@@ -166,12 +166,21 @@ Please see LICENSE in the repository root for full details.
  * `flex: 1` the footer would only be as tall as its content, leaving
  * the buttons orphaned at the top of the cell. We also disarm the
  * sticky-bottom positioning that the portrait layout uses, since
- * sticky behaves oddly inside a CSS-grid track. */
+ * sticky behaves oddly inside a CSS-grid track.
+ *
+ * `align-items: flex-end` pins the dock to the right edge of the
+ * cell (with a small inset so it doesn't kiss the bezel) instead of
+ * floating dead-centre — that read as orphaned, like an island. */
 [data-phone-voice-landscape="true"] .footer {
   position: static;
   flex: 1;
   justify-content: center;
-  padding: var(--cpd-space-4x);
+  align-items: flex-end;
+  padding-block: var(--cpd-space-4x);
+  /* Hug the right edge: minimal breathing-room on devices without a
+   * curved bezel / notch, plus the platform safe-area-inset so the dock
+   * never tucks under hardware furniture on phones that have it. */
+  padding-inline: 0 max(var(--cpd-space-1x), env(safe-area-inset-right));
   background: none;
 }
 
