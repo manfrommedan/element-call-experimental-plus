@@ -511,11 +511,27 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     configuration,
   );
 
-  return {
+  const merged = {
     ...properties,
     ...intentPreset,
     ...pickBy(configuration, (v?: unknown) => v !== undefined),
   };
+
+  // The Rust SDK does not yet expose group voice intent variants
+  // (JOIN_EXISTING_VOICE / START_CALL_VOICE), so for a group voice call the
+  // host (Element X) cannot pick a UserIntent that yields callIntent="audio".
+  // Treat phoneVoiceLayout=true as the authoritative voice-call signal: it
+  // is the same flag the host already uses to opt into the phone-style UI,
+  // so when it is set we know the call is meant to be voice, regardless of
+  // what the intent preset would otherwise resolve to. Without this, the
+  // matrix RTC notification event ends up carrying callIntent="video" and
+  // the receiver's incoming-call notification offers a "decline / video"
+  // pair instead of "decline / accept".
+  if (merged.phoneVoiceLayout === true) {
+    merged.callIntent = "audio";
+  }
+
+  return merged;
 };
 
 /**
