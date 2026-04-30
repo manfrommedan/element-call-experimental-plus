@@ -13,6 +13,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import classNames from "classnames";
 import { useObservableEagerState } from "observable-hooks";
 import { type TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -93,7 +94,10 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
   const participantCount = useObservableEagerState(vm.participantCount$);
   const ringing = useObservableEagerState(vm.ringing$);
-  const elapsedSeconds = useElapsedSeconds(participantCount > 1);
+  // Caller-side outgoing call before the remote side joins LiveKit. Drives the
+  // "Соединение…" status text in the timer slot and its pulse animation.
+  const isWaitingForRemote = participantCount <= 1;
+  const elapsedSeconds = useElapsedSeconds(!isWaitingForRemote);
 
   const mediaDevices = useMediaDevices();
   const availableOutputs = useObservableEagerState(
@@ -172,11 +176,16 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
 
   return (
     <>
-      {participantCount > 1 && (
-        <div className={styles.timer} aria-live="polite">
-          {formatTimer(elapsedSeconds)}
-        </div>
-      )}
+      <div
+        className={classNames(styles.timer, {
+          [styles.timerStatus]: isWaitingForRemote,
+        })}
+        aria-live="polite"
+      >
+        {isWaitingForRemote
+          ? t("voice_layout.phase_ringing")
+          : formatTimer(elapsedSeconds)}
+      </div>
       <div className={styles.footer}>
         <div className={styles.row}>
         <CircleButton

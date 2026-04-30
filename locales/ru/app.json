@@ -234,7 +234,7 @@
     "participants_count_other": "{{count}} участника",
     "phase_connecting": "Соединение…",
     "phase_reconnecting": "Восстановление…",
-    "phase_ringing": "Звонит…",
+    "phase_ringing": "Соединение…",
     "regular_call": "Обычный звонок",
     "speakerphone": "Громкая связь",
     "video_off": "Включить видео",
