@@ -1002,8 +1002,26 @@ export function createCallViewModel$(
     spotlight: MediaViewModel[];
     pip$: Observable<UserMediaViewModel | undefined>;
   }>(
-    ringingMedia$.pipe(
-      switchMap((ringingMedia) => {
+    combineLatest([ringingMedia$, phoneVoiceMode$, userMedia$]).pipe(
+      switchMap(([ringingMedia, phoneVoice, userMedia]) => {
+        // Phone-style messenger semantics: while we are still ringing the
+        // room and nobody has joined the LiveKit session yet, the screen
+        // should show the caller (us), not a random face from the room
+        // member list. Upstream Element Call puts ringingMedia into the
+        // spotlight unconditionally, which produces a different stranger's
+        // avatar depending on Map iteration order each time the layout
+        // re-evaluates. Override here so the caller always sees their own
+        // avatar until a peer actually picks up.
+        if (phoneVoice && ringingMedia.length > 0) {
+          const local = userMedia.find(
+            (m): m is WrappedUserMediaViewModel & LocalUserMediaViewModel =>
+              m.type === "user" && m.local,
+          );
+          return of({
+            spotlight: local ? [local] : [],
+            pip$: of(undefined),
+          });
+        }
         if (ringingMedia.length > 0)
           return of({ spotlight: ringingMedia, pip$: localUserMediaForPip$ });
 
