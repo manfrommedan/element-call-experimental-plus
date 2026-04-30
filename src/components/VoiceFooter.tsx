@@ -17,17 +17,17 @@ import classNames from "classnames";
 import { useObservableEagerState } from "observable-hooks";
 import { type TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
+import { Button as CpdButton, Tooltip } from "@vector-im/compound-web";
 import CheckIcon from "@vector-im/compound-design-tokens/assets/web/icons/check";
-import EndCallIcon from "@vector-im/compound-design-tokens/assets/web/icons/end-call";
-import EarpieceIcon from "@vector-im/compound-design-tokens/assets/web/icons/earpiece";
 import HeadphonesSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/headphones-solid";
-import MicOffSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/mic-off-solid";
-import MicOnSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/mic-on-solid";
-import VideoCallIcon from "@vector-im/compound-design-tokens/assets/web/icons/video-call";
-import VideoCallSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/video-call-solid";
 import VoiceCallIcon from "@vector-im/compound-design-tokens/assets/web/icons/voice-call";
 import VolumeOnSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/volume-on-solid";
 
+import {
+  EndCallButton,
+  MicButton,
+  VideoButton,
+} from "../button/Button";
 import { type CallViewModel } from "../state/CallViewModel/CallViewModel";
 import { type AudioOutputDeviceLabel } from "../state/MediaDevices";
 import { type MuteStates } from "../state/MuteStates";
@@ -171,6 +171,60 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
     [availableOutputs, t],
   );
   const activeOutput = outputs.find((o) => o.id === selectedOutput?.id);
+  // Highlight the audio-output button when the user has picked anything other
+  // than the default earpiece path; the change of route is the signal that
+  // makes the button worth glancing at, otherwise it sits as a plain control.
+  const isAlternateOutputActive =
+    activeOutput !== undefined && activeOutput.kind !== "earpiece";
+  // Reflect the active route in the button icon so the user can read the
+  // current output at a glance: each kind gets a dedicated glyph rather
+  // than a shared generic one. Earpiece-default routing reads as a regular
+  // phone handset so the button does not have to lean on a literal ear.
+  const audioOutputIcon = useMemo(() => {
+    switch (activeOutput?.kind) {
+      case "speaker":
+        return VolumeOnSolidIcon;
+      case "headphones":
+        return HeadphonesSolidIcon;
+      case "earpiece":
+      default:
+        return VoiceCallIcon;
+    }
+  }, [activeOutput?.kind]);
+
+  const onMicClick = useCallback((): void => {
+    if (!toggleAudio) return;
+    haptic("tap");
+    toggleAudio();
+  }, [toggleAudio]);
+
+  const onVideoClick = useCallback((): void => {
+    if (!toggleVideo) return;
+    haptic("tap");
+    if (!videoEnabled) setVideoPending(true);
+    toggleVideo();
+  }, [toggleVideo, videoEnabled]);
+
+  const onAudioOutputClick = useCallback((): void => {
+    haptic("tap");
+    setPickerOpen(true);
+  }, []);
+
+  const onHangupClick = useCallback((): void => {
+    haptic("hangup");
+    vm.hangup();
+  }, [vm]);
+
+  const onAudioOutputSelect = useCallback(
+    (id: string): void => {
+      haptic("tap");
+      mediaDevices.audioOutput.select(id);
+      setPickerOpen(false);
+    },
+    [mediaDevices.audioOutput],
+  );
+
+  const onPickerDismiss = useCallback((): void => setPickerOpen(false), []);
 
   if (hidden) return null;
 
@@ -188,84 +242,42 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
       </div>
       <div className={styles.footer}>
         <div className={styles.row}>
-        <CircleButton
-          label={
-            audioEnabled
-              ? t("voice_layout.microphone_on")
-              : t("voice_layout.microphone_off")
-          }
-          active={!audioEnabled}
-          onClick={
-            toggleAudio
-              ? (): void => {
-                  haptic("tap");
-                  toggleAudio();
-                }
-              : undefined
-          }
-          disabled={toggleAudio === null}
-        >
-          {audioEnabled ? <MicOnSolidIcon /> : <MicOffSolidIcon />}
-        </CircleButton>
-        <CircleButton
-          label={
-            activeOutput?.kindLabel ??
-            t("voice_layout.audio_output", "Audio output")
-          }
-          active={
-            activeOutput !== undefined && activeOutput.kind !== "earpiece"
-          }
-          onClick={() => {
-            haptic("tap");
-            setPickerOpen(true);
-          }}
-          disabled={outputs.length < 2}
-        >
-          {iconForOutputKind(activeOutput?.kind ?? "earpiece")}
-        </CircleButton>
-        <CircleButton
-          label={
-            videoActive
-              ? t("voice_layout.video_on", "Camera on")
-              : t("voice_layout.video_off", "Switch to video")
-          }
-          active={videoActive}
-          pending={videoPending && !videoEnabled}
-          onClick={
-            toggleVideo
-              ? (): void => {
-                  haptic("tap");
-                  if (!videoEnabled) setVideoPending(true);
-                  toggleVideo();
-                }
-              : undefined
-          }
-          disabled={toggleVideo === null}
-        >
-          {videoActive ? <VideoCallSolidIcon /> : <VideoCallIcon />}
-        </CircleButton>
-        <CircleButton
-          label={t("voice_layout.hangup")}
-          variant="danger"
-          onClick={() => {
-            haptic("hangup");
-            vm.hangup();
-          }}
-        >
-          <EndCallIcon />
-        </CircleButton>
-      </div>
-      <AudioOutputPicker
-        open={pickerOpen}
-        outputs={outputs}
-        selectedId={selectedOutput?.id}
-        onSelect={(id) => {
-          haptic("tap");
-          mediaDevices.audioOutput.select(id);
-          setPickerOpen(false);
-        }}
-        onDismiss={() => setPickerOpen(false)}
-      />
+          <MicButton
+            size="lg"
+            enabled={audioEnabled}
+            onClick={onMicClick}
+            disabled={toggleAudio === null}
+          />
+          <Tooltip
+            label={
+              activeOutput?.kindLabel ??
+              t("voice_layout.audio_output", "Audio output")
+            }
+          >
+            <CpdButton
+              iconOnly
+              size="lg"
+              kind={isAlternateOutputActive ? "primary" : "secondary"}
+              Icon={audioOutputIcon}
+              onClick={onAudioOutputClick}
+              disabled={outputs.length < 2}
+            />
+          </Tooltip>
+          <VideoButton
+            size="lg"
+            enabled={videoActive}
+            onClick={onVideoClick}
+            disabled={toggleVideo === null}
+          />
+          <EndCallButton size="lg" onClick={onHangupClick} />
+        </div>
+        <AudioOutputPicker
+          open={pickerOpen}
+          outputs={outputs}
+          selectedId={selectedOutput?.id}
+          onSelect={onAudioOutputSelect}
+          onDismiss={onPickerDismiss}
+        />
       </div>
     </>
   );
@@ -278,44 +290,6 @@ interface OutputOption {
   label: string;
   kind: OutputKind;
 }
-
-interface CircleButtonProps {
-  children: ReactNode;
-  label: string;
-  onClick?: () => void;
-  active?: boolean;
-  disabled?: boolean;
-  pending?: boolean;
-  variant?: "default" | "danger";
-}
-
-const CircleButton: FC<CircleButtonProps> = ({
-  children,
-  label,
-  onClick,
-  active,
-  disabled,
-  pending,
-  variant,
-}) => (
-  <button
-    type="button"
-    className={styles.button}
-    data-active={active ? "true" : "false"}
-    data-pending={pending ? "true" : "false"}
-    data-variant={variant ?? "default"}
-    onClick={onClick}
-    disabled={disabled}
-    aria-busy={pending ? "true" : undefined}
-    aria-label={label}
-  >
-    <span className={styles.buttonIcon} aria-hidden="true">
-      {children}
-      {pending && <span className={styles.buttonSpinner} aria-hidden="true" />}
-    </span>
-    <span className={styles.buttonLabel}>{label}</span>
-  </button>
-);
 
 interface AudioOutputPickerProps {
   open: boolean;
@@ -437,12 +411,11 @@ function genericLabelForOutputKind(kind: OutputKind, t: TFunction): string {
 
 function iconForOutputKind(kind: OutputKind): ReactNode {
   switch (kind) {
-    case "earpiece":
-      return <EarpieceIcon />;
     case "speaker":
       return <VolumeOnSolidIcon />;
     case "headphones":
       return <HeadphonesSolidIcon />;
+    case "earpiece":
     case "default":
       return <VoiceCallIcon />;
   }

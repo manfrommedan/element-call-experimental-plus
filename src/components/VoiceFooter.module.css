@@ -77,106 +77,6 @@ Please see LICENSE in the repository root for full details.
   gap: 24px;
 }
 
-.button {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  /* Flex behaviour comes from the surrounding row via a CSS variable —
-   * row-mode (the portrait default) wants `1 1 0` so each column claims
-   * an equal share, column-mode (the landscape dock) wants `0 0 auto` so
-   * each button stays at icon-column-width. min-inline-size: 0 lets a
-   * long label truncate inside its share rather than expand it. */
-  flex: var(--voice-footer-button-flex, 1 1 0);
-  min-inline-size: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  color: var(--cpd-color-text-primary);
-  font: inherit;
-  cursor: pointer;
-}
-
-.button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.buttonIcon {
-  position: relative;
-  /* Matches Compound's `iconOnly`/`size="lg"` icon button (48x48) so the */
-  /* phone-style footer doesn't visually stand out next to the upstream  */
-  /* CallFooter buttons used in video calls. */
-  inline-size: var(--cpd-space-12x);
-  block-size: var(--cpd-space-12x);
-  border-radius: 50%;
-  background: var(--cpd-color-bg-subtle-secondary);
-  border: 1px solid var(--cpd-color-border-interactive-secondary);
-  display: grid;
-  place-items: center;
-  transition:
-    background 0.15s ease,
-    transform 0.15s ease;
-}
-
-.buttonSpinner {
-  position: absolute;
-  inset: -3px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  border-block-start-color: var(--cpd-color-icon-primary);
-  border-inline-end-color: var(--cpd-color-icon-primary);
-  animation: voiceFooterSpin 0.8s linear infinite;
-  pointer-events: none;
-}
-
-@keyframes voiceFooterSpin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.buttonIcon svg {
-  inline-size: 24px;
-  block-size: 24px;
-  color: var(--cpd-color-icon-primary);
-}
-
-.button:not(:disabled):active .buttonIcon {
-  transform: scale(0.94);
-}
-
-.button[data-active="true"] .buttonIcon {
-  background: var(--cpd-color-icon-primary);
-  border-color: var(--cpd-color-icon-primary);
-}
-
-.button[data-active="true"] .buttonIcon svg {
-  color: var(--cpd-color-bg-canvas-default);
-}
-
-.button[data-variant="danger"] .buttonIcon {
-  background: var(--cpd-color-bg-critical-primary);
-  border-color: var(--cpd-color-bg-critical-primary);
-}
-
-.button[data-variant="danger"] .buttonIcon svg {
-  color: var(--cpd-color-text-on-solid-primary, #ffffff);
-}
-
-.buttonLabel {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--cpd-color-text-secondary);
-  /* Wide enough labels (Bluetooth device names, "Switch to video") don't */
-  /* push the column out — they get truncated to the column width.        */
-  max-inline-size: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /*
  * Landscape phone-style split layout: the right column is tall and narrow,
  * so stack the four buttons vertically instead of squeezing them into a
@@ -240,10 +140,7 @@ Please see LICENSE in the repository root for full details.
  * picks up automatically. flex-direction can't be transitioned —
  * the row-to-column reflow is the unavoidable visual snap — but the
  * surrounding pill morphs in/out softly enough that the snap reads as
- * intentional rather than a glitch.
- *
- * The flex-behaviour cascade is driven by a CSS variable on .row, see
- * the `.button { flex: var(...) }` declaration above for context. */
+ * intentional rather than a glitch. */
 [data-phone-voice-landscape="true"] .row {
   flex-direction: column;
   gap: var(--cpd-space-6x);
@@ -253,8 +150,6 @@ Please see LICENSE in the repository root for full details.
   border-radius: 999px;
   box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
   transform: scale(1);
-  /* Tell child buttons to stop stretching — see `.button` for context. */
-  --voice-footer-button-flex: 0 0 auto;
 }
 
 .row {
@@ -273,41 +168,14 @@ Please see LICENSE in the repository root for full details.
   will-change: transform, background;
 }
 
-/* Inside the dock the per-button border becomes visual noise — the
- * pill itself is the boundary. Drop the border, keep the
- * subtle-secondary fill so the icons retain their own affordance. */
-[data-phone-voice-landscape="true"] .buttonIcon {
-  border-color: transparent;
-}
-
-[data-phone-voice-landscape="true"] .button {
-  justify-content: center;
-}
-
-/* Respect the user's reduced-motion preference. Drop every transition
- * in this stylesheet — the pill morph, the button :active scale, the
- * audio-output button background change. Accessibility over polish. */
+/* Respect the user's reduced-motion preference. Drop the row pill morph
+ * transition and the picker row hover transition; the upstream Compound
+ * buttons handle their own reduced-motion case internally. */
 @media (prefers-reduced-motion: reduce) {
   .row,
-  .buttonIcon,
   .outputRow {
     transition: none;
   }
-
-  .button:not(:disabled):active .buttonIcon {
-    transform: none;
-  }
-}
-
-/* No labels under the icons in landscape — the column is narrow and
- * the icons (mic / speaker / video / hang up) are unambiguous on
- * their own. */
-[data-phone-voice-landscape="true"] .buttonLabel {
-  display: none;
-}
-
-[data-phone-voice-landscape="true"] .button {
-  justify-content: center;
 }
 
 .outputList {
