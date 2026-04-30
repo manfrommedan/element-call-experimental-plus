@@ -70,6 +70,17 @@ Please see LICENSE in the repository root for full details.
   }
 }
 
+/* In landscape phone-style mode the screen is split into a spotlight pane
+ * on the left and a dock pane on the right. The timer is position:fixed so
+ * it tracks the viewport, not the grid; without this override its
+ * `inset-inline: 0` would centre the text across the whole screen and
+ * smear it across the dock pane. Constrain to the left half of the
+ * viewport so the text centres over the spotlight where the avatar lives,
+ * mirroring the column split set up in InCallView for this mode. */
+[data-phone-voice-landscape="true"] .timer {
+  inset-inline-end: 50%;
+}
+
 .row {
   display: flex;
   align-items: flex-start;
