@@ -987,19 +987,12 @@ export function createCallViewModel$(
             m.type === "user" && m.local,
         );
         if (!localUserMedia) return of(undefined);
-        // The local self-tile is suppressed when the user opted out of
-        // "Always show myself" (alwaysShow$ false) or when the call is in
-        // phone-style mode. Gating here at the model level guarantees every
-        // layout that consumes spotlightAndPip$ (SpotlightExpandedLayout,
-        // SpotlightPortraitLayout, etc.) gets the right behaviour without
-        // duplicating the rule into each layout's CSS.
-        return combineLatest([
-          localUserMedia.alwaysShow$,
-          phoneVoiceMode$,
-        ]).pipe(
-          map(([alwaysShow, phoneVoice]) =>
-            !phoneVoice && alwaysShow ? localUserMedia : undefined,
-          ),
+        // The local self-tile is suppressed when the user has opted out of
+        // "Always show myself". The phone-style mode pip suppression is
+        // applied centrally on layoutMedia$, so this hook is responsible
+        // only for the "Always show myself" preference.
+        return localUserMedia.alwaysShow$.pipe(
+          map((alwaysShow) => (alwaysShow ? localUserMedia : undefined)),
         );
       }),
     ),
@@ -1154,20 +1147,18 @@ export function createCallViewModel$(
             );
 
             if (remote !== undefined)
-              return phoneVoiceMode$.pipe(
-                map((phoneVoice) => ({
-                  type: "one-on-one" as const,
-                  spotlight: remote,
-                  // Suppress the local pip in phone-style mode so the
-                  // OneOnOneLayout matches the model-level rule applied to
-                  // the other layouts via spotlightAndPip$.
-                  pip: phoneVoice ? undefined : local,
-                })),
-              );
+              return of({
+                type: "one-on-one" as const,
+                spotlight: remote,
+                pip: local,
+              });
 
             // If there's no other user media in the call (could still happen in
             // this branch due to the duplicate tiles option), we could possibly
-            // show ringing media instead
+            // show ringing media instead. The phone-style mode gate that
+            // suppresses pips lives at the layoutMedia$ tail (see below), so
+            // this branch can stay focussed on layout selection and leave the
+            // suppression to the single source of truth.
             if (userMedia.length === 1)
               return ringingMedia$.pipe(
                 map((ringingMedia) => {
@@ -1192,9 +1183,13 @@ export function createCallViewModel$(
   );
 
   /**
-   * The media to be used to produce a layout.
+   * The media to be used to produce a layout, before the phone-style pip
+   * suppression pass below. Layout selection here is concerned only with
+   * which layout type fits the current window mode and grid mode; whether a
+   * particular layout's pip slot should be filled is decided centrally at
+   * layoutMedia$ to keep the rule in one place.
    */
-  const layoutMedia$ = scope.behavior<LayoutMedia>(
+  const rawLayoutMedia$: Observable<LayoutMedia> =
     windowMode$.pipe(
       switchMap((windowMode) => {
         switch (windowMode) {
@@ -1250,6 +1245,29 @@ export function createCallViewModel$(
           case "pip":
             return pipLayoutMedia$;
         }
+      }),
+    );
+
+  /**
+   * The media used to produce a layout, with the phone-style pip suppression
+   * applied. When the host has opted into the phone-style call layout via
+   * the `phoneVoiceLayout` URL flag and the local user has not enabled video
+   * (i.e. [phoneVoiceMode$] is true), every floating pip tile is dropped
+   * regardless of which layout is in play. Centralising the rule here is the
+   * single source of truth, so future layout-selection branches do not need
+   * to remember to gate their pips individually. The grid contents remain
+   * untouched: the underlying layout still draws spotlight and any tile
+   * grid, the VoiceFooter renders on top, and only the floating self-tile
+   * is hidden because the dock already conveys the local presence.
+   */
+  const layoutMedia$ = scope.behavior<LayoutMedia>(
+    combineLatest([rawLayoutMedia$, phoneVoiceMode$]).pipe(
+      map(([media, phoneVoice]) => {
+        if (!phoneVoice) return media;
+        if ("pip" in media && media.pip !== undefined) {
+          return { ...media, pip: undefined };
+        }
+        return media;
       }),
     ),
   );
