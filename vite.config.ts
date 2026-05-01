@@ -24,6 +24,8 @@ import react from "@vitejs/plugin-react";
 import { realpathSync } from "fs";
 import * as fs from "node:fs";
 
+import { phoneLayerOverridePlugin } from "./phone-layer/vite-plugin";
+
 // https://vitejs.dev/config/
 // Modified type helper from defineConfig to allow for packageType (see defineConfig from vite)
 export default ({
@@ -56,6 +58,13 @@ export default ({
       uploadToken: process.env.CODECOV_TOKEN,
     }),
   ];
+
+  // Element X+ phone-layer fork: redirects imports from `src/...` to
+  // `phone-layer/src/...` when FORK_PHONE_LAYER=1 and a mirror exists.
+  // No-op (returns null) in vanilla mode, so the upstream build is
+  // unaffected. See phone-layer/README.md.
+  const phoneLayer = phoneLayerOverridePlugin();
+  if (phoneLayer) plugins.push(phoneLayer);
 
   if (
     process.env.SENTRY_ORG &&
