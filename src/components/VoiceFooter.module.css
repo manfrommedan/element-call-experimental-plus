@@ -1,0 +1,256 @@
+/*
+Copyright 2026 New Vector Ltd.
+
+SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+Please see LICENSE in the repository root for full details.
+*/
+
+.footer {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--call-view-header-footer-layer);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: var(--cpd-space-10x) var(--cpd-space-4x)
+    calc(var(--cpd-space-6x) + env(safe-area-inset-bottom));
+  inline-size: 100%;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0) 0%,
+    var(--cpd-color-bg-canvas-default) 60%
+  );
+  pointer-events: auto;
+}
+
+.timer {
+  /* iOS-style placement: pinned just under the AppBar (which already shows */
+  /* the recipient's name) so the screen reads "Alice / 00:23" top to       */
+  /* bottom like the stock iOS Phone app. Compound body-lg / semibold +     */
+  /* primary text colour so it's visible at arm's length without dominating */
+  /* the avatar tile underneath. tabular-nums keeps the digits a fixed      */
+  /* width while the seconds tick.                                          */
+  position: fixed;
+  inset-block-start: calc(64px + env(safe-area-inset-top));
+  inset-inline: 0;
+  margin-block-start: var(--cpd-space-2x);
+  text-align: center;
+  font: var(--cpd-font-body-lg-semibold);
+  color: var(--cpd-color-text-primary);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: var(--call-view-header-footer-layer);
+}
+
+/* Applied to the same .timer slot while the call is still ringing (no peer
+   joined yet). The text "Соединение…" / "Ringing…" lives in this class with
+   a slow opacity pulse so the screen feels alive while the user waits for
+   the other side to pick up. Subdued primary colour mirrors the iOS Phone
+   "Calling…" treatment. Disabled when the user prefers reduced motion. */
+.timerStatus {
+  color: var(--cpd-color-text-secondary);
+  animation: timerStatusPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes timerStatusPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timerStatus {
+    animation: none;
+    opacity: 0.85;
+  }
+}
+
+/* In landscape phone-style mode the screen is split into a spotlight pane
+ * on the left and a dock pane on the right. The timer is position:fixed so
+ * it tracks the viewport, not the grid; without this override its
+ * `inset-inline: 0` would centre the text across the whole screen and
+ * smear it across the dock pane. Constrain to the left half of the
+ * viewport so the text centres over the spotlight where the avatar lives,
+ * mirroring the column split set up in InCallView for this mode. */
+[data-phone-voice-landscape="true"] .timer {
+  inset-inline-end: 50%;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 24px;
+}
+
+/*
+ * Landscape phone-style split layout: the right column is tall and narrow,
+ * so stack the four buttons vertically instead of squeezing them into a
+ * horizontal row. Each row of the stack gets the full column width - the
+ * label fits beneath the icon comfortably without truncation.
+ *
+ * Gate on the same `data-phone-voice-landscape` attribute InCallView
+ * writes on its root, which is itself gated on phoneVoiceMode AND a flat
+ * window AND a mobile platform. So a desktop user who shrinks their
+ * browser to landscape-phone-shape never sees this rearranged layout.
+ */
+/* The footer fills the entire right grid cell so its own
+ * justify-content can vertically centre the icon column - without
+ * `flex: 1` the footer would only be as tall as its content, leaving
+ * the buttons orphaned at the top of the cell. We also disarm the
+ * sticky-bottom positioning that the portrait layout uses, since
+ * sticky behaves oddly inside a CSS-grid track.
+ *
+ * `align-items: flex-end` pins the dock to the right edge of the
+ * cell (with a small inset so it doesn't kiss the bezel) instead of
+ * floating dead-centre - that read as orphaned, like an island. */
+[data-phone-voice-landscape="true"] .footer {
+  position: static;
+  flex: 1;
+  justify-content: center;
+  align-items: flex-end;
+  padding-block: var(--cpd-space-4x);
+  /* Hug the right edge: minimal breathing-room on devices without a
+   * curved bezel / notch, plus the platform safe-area-inset on phones
+   * that have one. Two-step fallback for older WebViews: the simple
+   * declaration applies on every browser, then the modern one with
+   * env() + max() takes precedence on Chromium 79+ (Android 9+). */
+  padding-inline-start: 0;
+  /* 16 px hits the Material Design floor for an edge-anchored surface
+   * (Bottom App Bar / FAB rest there) and the iOS Human Interface
+   * Guidelines `default-margin` for landscape. Tap targets within
+   * 16 px don't collide with the system gesture inset - the OS
+   * distinguishes a tap from a swipe-from-edge. Curved displays
+   * automatically widen the gap through env(safe-area-inset-right).
+   *
+   * Two-step fallback: the static declaration applies on every
+   * browser, the env()+max() one overrides on Chromium 79+ (Android
+   * 9+) so older WebViews still get a sensible floor. */
+  padding-inline-end: var(--cpd-space-4x);
+  padding-inline-end: max(var(--cpd-space-4x), env(safe-area-inset-right));
+  background: none;
+}
+
+/* The button-row collapses into a vertical icon column wrapped in a
+ * pill-shaped surface - reads as a floating dock instead of icons
+ * orphaned in the right pane. We use the primary subtle canvas (one
+ * notch above the buttons' own subtle-secondary fill) so the circular
+ * icon backgrounds stay visible against the pill rather than blending
+ * into it; a soft drop shadow gives the dock a sense of elevation
+ * against the spotlight tile.
+ *
+ * Both the enter and exit are smoothed via `transition` on every
+ * landscape-only property. Toggling `data-phone-voice-landscape` on the
+ * ancestor moves these from their portrait defaults to the dock values
+ * (or back); the .row element itself stays mounted, so transition
+ * picks up automatically. flex-direction can't be transitioned -
+ * the row-to-column reflow is the unavoidable visual snap - but the
+ * surrounding pill morphs in/out softly enough that the snap reads as
+ * intentional rather than a glitch. */
+[data-phone-voice-landscape="true"] .row {
+  flex-direction: column;
+  gap: var(--cpd-space-6x);
+  align-items: center;
+  padding: var(--cpd-space-4x) var(--cpd-space-3x);
+  background: var(--cpd-color-bg-subtle-primary);
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+  transform: scale(1);
+}
+
+.row {
+  /* 150 ms hits the snappy-but-perceivable sweet spot for short UI
+   * transitions; longer feels sluggish on a fast-tap. transform is
+   * GPU-accelerated, the rest are paint-only and cheap on small
+   * surfaces like this row. will-change tells the engine to prepare
+   * a compositor layer ahead of time so the first frame doesn't
+   * stall on jank. */
+  transition:
+    background 150ms ease-out,
+    border-radius 150ms ease-out,
+    padding 150ms ease-out,
+    box-shadow 150ms ease-out,
+    transform 150ms ease-out;
+  will-change: transform, background;
+}
+
+/* Respect the user's reduced-motion preference. Drop the row pill morph
+ * transition and the picker row hover transition; the upstream Compound
+ * buttons handle their own reduced-motion case internally. */
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .outputRow {
+    transition: none;
+  }
+}
+
+.outputList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.outputRow {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  inline-size: 100%;
+  padding: 14px 8px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font: inherit;
+  color: var(--cpd-color-text-primary);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+
+.outputRow:hover,
+.outputRow:focus-visible {
+  background: var(--cpd-color-bg-subtle-secondary);
+}
+
+.outputRow[data-active="true"] {
+  color: var(--cpd-color-text-action-accent);
+}
+
+.outputIcon {
+  inline-size: 32px;
+  block-size: 32px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.outputIcon svg {
+  inline-size: 22px;
+  block-size: 22px;
+}
+
+.outputLabel {
+  flex: 1;
+  text-align: start;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.outputCheck {
+  inline-size: 20px;
+  block-size: 20px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.outputCheck svg {
+  inline-size: 20px;
+  block-size: 20px;
+}
