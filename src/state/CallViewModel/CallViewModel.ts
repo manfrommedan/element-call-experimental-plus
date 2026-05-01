@@ -71,6 +71,7 @@ import { gridLikeLayout } from "../GridLikeLayout";
 import { spotlightExpandedLayout } from "../SpotlightExpandedLayout";
 import { oneOnOneLandscapeLayout } from "../OneOnOneLandscapeLayout";
 import { oneOnOnePortraitLayout } from "../OneOnOnePortraitLayout";
+import { phoneVoiceLayout } from "../PhoneVoiceLayout";
 import { pipLayout } from "../PipLayout";
 import { type EncryptionSystem } from "../../e2ee/sharedKeyManagement";
 import {
@@ -384,6 +385,9 @@ export interface CallViewModel {
    * Shortcut for not requireing to parse and combine connectionState.matrix and connectionState.livekit
    */
   connected$: Behavior<boolean>;
+
+  // True iff phoneVoiceLayout URL flag is set and the local camera is off.
+  phoneVoiceMode$: Behavior<boolean>;
 }
 
 /**
@@ -406,6 +410,9 @@ export function createCallViewModel$(
   reactionsSubject$: Observable<Record<string, ReactionInfo>>,
   trackProcessorState$: Behavior<ProcessorState>,
 ): CallViewModel {
+  // URL params are constant for the call lifetime - read once.
+  const urlParams = getUrlParams();
+
   const client = matrixRoom.client;
   const userId = client.getUserId();
   const deviceId = client.getDeviceId();
@@ -952,6 +959,15 @@ export function createCallViewModel$(
    * Local user media suitable for displaying in a PiP (undefined if not found
    * or if user prefers to not see themselves).
    */
+  const phoneVoiceMode$ = scope.behavior<boolean>(
+    muteStates.video.enabled$.pipe(
+      map(
+        (videoEnabled) =>
+          urlParams.phoneVoiceLayout === true && !videoEnabled,
+      ),
+    ),
+  );
+
   const localUserMediaForPip$ = scope.behavior<
     LocalUserMediaViewModel | undefined
   >(
@@ -962,6 +978,8 @@ export function createCallViewModel$(
             m.type === "user" && m.local,
         );
         if (!localUserMedia) return of(undefined);
+        // "Always show myself" preference; phone-voice suppression is at
+        // layoutMedia$.
         return localUserMedia.alwaysShow$.pipe(
           map((alwaysShow) => (alwaysShow ? localUserMedia : undefined)),
         );
@@ -973,8 +991,20 @@ export function createCallViewModel$(
     spotlight: MediaViewModel[];
     pip$: Observable<UserMediaViewModel | undefined>;
   }>(
-    ringingMedia$.pipe(
-      switchMap((ringingMedia) => {
+    combineLatest([ringingMedia$, phoneVoiceMode$, userMedia$]).pipe(
+      switchMap(([ringingMedia, phoneVoice, userMedia]) => {
+        // While ringing and the caller is alone, show the caller's own
+        // avatar instead of a random room member (upstream picks by Map order).
+        if (phoneVoice && ringingMedia.length > 0) {
+          const local = userMedia.find(
+            (m): m is WrappedUserMediaViewModel & LocalUserMediaViewModel =>
+              m.type === "user" && m.local,
+          );
+          return of({
+            spotlight: local ? [local] : [],
+            pip$: of(undefined),
+          });
+        }
         if (ringingMedia.length > 0)
           return of({ spotlight: ringingMedia, pip$: localUserMediaForPip$ });
 
@@ -1191,10 +1221,7 @@ export function createCallViewModel$(
     })),
   );
 
-  /**
-   * The media to be used to produce a layout.
-   */
-  const layoutMedia$ = scope.behavior<LayoutMedia>(
+  const rawLayoutMedia$: Observable<LayoutMedia> =
     windowMode$.pipe(
       switchMap((windowMode) => {
         switch (windowMode) {
@@ -1247,6 +1274,24 @@ export function createCallViewModel$(
             );
           case "pip":
             return pipLayoutMedia$;
+        }
+      }),
+    );
+
+  // When phoneVoiceMode$ is on: 1:1 routes through PhoneVoiceLayout (its own
+  // layout slot, no pip), and any other layout that still has a floating pip
+  // drops it so the VoiceFooter is the only local-presence affordance.
+  const layoutMedia$ = scope.behavior<LayoutMedia>(
+    combineLatest([rawLayoutMedia$, phoneVoiceMode$]).pipe(
+      map(([media, phoneVoice]) => {
+        if (!phoneVoice) return media;
+        switch (media.type) {
+          case "one-on-one":
+            return { type: "phone-voice", spotlight: media.spotlight };
+          case "spotlight-expanded":
+            return media.pip === undefined ? media : { ...media, pip: undefined };
+          default:
+            return media;
         }
       }),
     ),
@@ -1500,6 +1545,9 @@ export function createCallViewModel$(
                 portraitPipAlignment$,
                 prevTiles,
               );
+              break;
+            case "phone-voice":
+              [layout, newTiles] = phoneVoiceLayout(media, prevTiles);
               break;
             case "pip":
               [layout, newTiles] = pipLayout(media, prevTiles);
@@ -1766,6 +1814,7 @@ export function createCallViewModel$(
     reconnecting$: localMembership.reconnecting$,
     livekitRoomItems$,
     connected$: localMembership.connected$,
+    phoneVoiceMode$,
   };
 }
 

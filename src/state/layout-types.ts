@@ -59,6 +59,11 @@ export interface OneOnOnePortraitLayoutMedia {
   pip?: LocalUserMediaViewModel;
 }
 
+export interface PhoneVoiceLayoutMedia {
+  type: "phone-voice";
+  spotlight: UserMediaViewModel;
+}
+
 export interface PipLayoutMedia {
   type: "pip";
   edgeToEdge: boolean;
@@ -72,6 +77,7 @@ export type LayoutMedia =
   | SpotlightExpandedLayoutMedia
   | OneOnOneLandscapeLayoutMedia
   | OneOnOnePortraitLayoutMedia
+  | PhoneVoiceLayoutMedia
   | PipLayoutMedia;
 
 export interface Alignment {
@@ -123,6 +129,11 @@ export interface OneOnOnePortraitLayout {
   pipAlignment$: BehaviorSubject<Alignment>;
 }
 
+export interface PhoneVoiceLayout {
+  type: "phone-voice";
+  spotlight: GridTileViewModel;
+}
+
 export interface PipLayout {
   type: "pip";
   spotlight: SpotlightTileViewModel;
@@ -139,4 +150,5 @@ export type Layout =
   | SpotlightExpandedLayout
   | OneOnOneLandscapeLayout
   | OneOnOnePortraitLayout
+  | PhoneVoiceLayout
   | PipLayout;

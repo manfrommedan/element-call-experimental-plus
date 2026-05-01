@@ -26,6 +26,7 @@ import { logger as rootLogger } from "matrix-js-sdk/lib/logger";
 import { useTranslation } from "react-i18next";
 
 import { Header, LeftNav, RightNav, RoomHeaderInfo } from "../Header";
+import { platform } from "../Platform";
 import { HeaderStyle, useUrlParams } from "../UrlParams";
 import { useCallViewKeyboardShortcuts } from "../useCallViewKeyboardShortcuts";
 import { widget } from "../widget";
@@ -52,6 +53,7 @@ import { makeGridLayout } from "../grid/GridLayout";
 import { type CallLayoutOutputs } from "../grid/CallLayout";
 import { makeOneOnOneLandscapeLayout } from "../grid/OneOnOneLandscapeLayout";
 import { makeOneOnOnePortraitLayout } from "../grid/OneOnOnePortraitLayout";
+import { makePhoneVoiceLayout } from "../grid/PhoneVoiceLayout";
 import { makeSpotlightExpandedLayout } from "../grid/SpotlightExpandedLayout";
 import { makeSpotlightLandscapeLayout } from "../grid/SpotlightLandscapeLayout";
 import { makeSpotlightPortraitLayout } from "../grid/SpotlightPortraitLayout";
@@ -82,6 +84,7 @@ import { type Layout } from "../state/layout-types.ts";
 import { ObservableScope } from "../state/ObservableScope.ts";
 import { useLatest } from "../useLatest.ts";
 import { CallFooter, type FooterSnapshot } from "../components/CallFooter.tsx";
+import { VoiceFooter } from "../components/VoiceFooter.tsx";
 import { SettingsIconButton } from "../button/Button.tsx";
 import { createCallFooterViewModel } from "../components/CallFooterViewModel.tsx";
 import { type ViewModel } from "../state/ViewModel.ts";
@@ -266,6 +269,8 @@ export const InCallView: FC<InCallViewProps> = ({
     () => void toggleRaisedHand(),
   );
 
+  const phoneVoiceMode = useBehavior(vm.phoneVoiceMode$);
+
   const ringing = useBehavior(vm.ringing$);
   const audioParticipants = useBehavior(vm.livekitRoomItems$);
   const participantCount = useBehavior(vm.participantCount$);
@@ -286,10 +291,10 @@ export const InCallView: FC<InCallViewProps> = ({
     throw fatalCallError;
   }
 
-  // While ringing, loop the ringtone
+  // While ringing, loop the ringtone (VoiceFooter has its own dial tone).
   useEffect((): void | (() => void) => {
     const audio = latestPickupPhaseAudio.current;
-    if (ringing && audio) {
+    if (ringing && audio && !phoneVoiceMode) {
       const endSound = audio.playSoundLooping(
         "waiting",
         audio.soundDuration["waiting"] ?? 1,
@@ -300,7 +305,7 @@ export const InCallView: FC<InCallViewProps> = ({
         });
       };
     }
-  }, [ringing, latestPickupPhaseAudio]);
+  }, [ringing, latestPickupPhaseAudio, phoneVoiceMode]);
 
   // iOS Safari doesn't reliably fire `click` on plain <div>s, so we listen
   // for `pointerup` instead. Scrolls end in `pointercancel`, not `pointerup`,
@@ -431,14 +436,15 @@ export const InCallView: FC<InCallViewProps> = ({
 
   const earpieceOverlay = (
     <EarpieceOverlay
-      show={earpieceMode && !reconnecting}
+      show={earpieceMode && !reconnecting && !phoneVoiceMode}
       onBackToVideoPressed={audioOutputSwitcher?.switch}
     />
   );
 
   // If the reconnecting toast or earpiece overlay obscures the media tiles, we
   // need to remove them from the accessibility tree and block focus.
-  const contentObscured = reconnecting || earpieceMode;
+  const contentObscured =
+    reconnecting || (earpieceMode && !phoneVoiceMode);
 
   const Tile = useMemo(
     () =>
@@ -499,6 +505,7 @@ export const InCallView: FC<InCallViewProps> = ({
       "spotlight-expanded": makeSpotlightExpandedLayout(inputs),
       "one-on-one-landscape": makeOneOnOneLandscapeLayout(inputs),
       "one-on-one-portrait": makeOneOnOnePortraitLayout(inputs),
+      "phone-voice": makePhoneVoiceLayout(inputs),
     };
   }, [gridBoundsObservable$]);
 
@@ -597,8 +604,10 @@ export const InCallView: FC<InCallViewProps> = ({
   );
 
   // Only hide the settings button if we have an AppBar header and we are showing the header
-  const footer = footerVm !== null && (
-    <CallFooter ref={footerRef} vm={footerVm} />
+  const footer = phoneVoiceMode ? (
+    <VoiceFooter vm={vm} muteStates={props.muteStates} hidden={!showFooter} />
+  ) : (
+    footerVm !== null && <CallFooter ref={footerRef} vm={footerVm} />
   );
   const allConnections = useBehavior(vm.allConnections$);
 
@@ -608,6 +617,12 @@ export const InCallView: FC<InCallViewProps> = ({
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       className={styles.inRoom}
+      // CSS-driven landscape split: spotlight | VoiceFooter on mobile flat.
+      data-phone-voice-landscape={
+        phoneVoiceMode && windowMode === "flat" && platform !== "desktop"
+          ? "true"
+          : undefined
+      }
       ref={containerRef}
       onPointerUp={onViewPointerUp}
       onPointerMove={onPointerMove}
@@ -629,7 +644,7 @@ export const InCallView: FC<InCallViewProps> = ({
       {reconnectingToast}
       {earpieceOverlay}
       <ReactionsOverlay vm={vm} />
-      {footer}
+      <div className={styles.footerSlot}>{footer}</div>
       {layout.type !== "pip" && (
         <>
           <RageshakeRequestModal {...rageshakeRequestModalProps} />
