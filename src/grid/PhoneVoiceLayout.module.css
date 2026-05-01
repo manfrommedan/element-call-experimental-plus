@@ -1,0 +1,20 @@
+/*
+Copyright 2026 Element Creations Ltd.
+
+SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
+Please see LICENSE in the repository root for full details.
+*/
+
+.layer {
+  block-size: 100%;
+  display: grid;
+  place-items: center;
+  --video-tile-background: var(--cpd-color-bg-canvas-default);
+  --media-view-border-radius: 0;
+}
+
+.container {
+  position: relative;
+  inline-size: 100% !important;
+  block-size: 100% !important;
+}

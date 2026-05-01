@@ -54,6 +54,7 @@ import { makeGridLayout } from "../grid/GridLayout";
 import { type CallLayoutOutputs } from "../grid/CallLayout";
 import { makeOneOnOneDesktopLayout } from "../grid/OneOnOneDesktopLayout";
 import { makeOneOnOneMobileLayout } from "../grid/OneOnOneMobileLayout";
+import { makePhoneVoiceLayout } from "../grid/PhoneVoiceLayout";
 import { makeSpotlightExpandedLayout } from "../grid/SpotlightExpandedLayout";
 import { makeSpotlightLandscapeLayout } from "../grid/SpotlightLandscapeLayout";
 import { makeSpotlightPortraitLayout } from "../grid/SpotlightPortraitLayout";
@@ -84,6 +85,7 @@ import { useTrackProcessorObservable$ } from "../livekit/TrackProcessorContext.t
 import { type Layout } from "../state/layout-types.ts";
 import { ObservableScope } from "../state/ObservableScope.ts";
 import { CallFooter, type FooterSnapshot } from "../components/CallFooter.tsx";
+import { VoiceFooter } from "../components/VoiceFooter.tsx";
 import { SettingsIconButton } from "../button/Button.tsx";
 import { createCallFooterViewModel } from "../components/CallFooterViewModel.tsx";
 import { createDeveloperSettingsTabViewModel } from "../settings/DeveloperSettingsTabViewModel.ts";
@@ -297,6 +299,8 @@ export const InCallView: FC<InCallViewProps> = ({
   );
 
   const ringingVm = useBehavior(vm.ringingVm$);
+  const phoneVoiceMode = useBehavior(vm.phoneVoiceMode$);
+  const phoneVoiceLandscape = useBehavior(vm.phoneVoiceLandscape$);
   const audioParticipants = useBehavior(vm.livekitRoomItems$);
   const participantCount = useBehavior(vm.participantCount$);
   const reconnecting = useBehavior(vm.reconnecting$);
@@ -468,14 +472,14 @@ export const InCallView: FC<InCallViewProps> = ({
 
   const earpieceOverlay = (
     <EarpieceOverlay
-      show={earpieceMode && !reconnecting}
+      show={earpieceMode && !reconnecting && !phoneVoiceMode}
       onBackToVideoPressed={audioOutputSwitcher?.switch}
     />
   );
 
   // If the reconnecting toast or earpiece overlay obscures the media tiles, we
   // need to remove them from the accessibility tree and block focus.
-  const contentObscured = reconnecting || earpieceMode;
+  const contentObscured = reconnecting || (earpieceMode && !phoneVoiceMode);
 
   const Tile = useMemo(
     () =>
@@ -546,6 +550,7 @@ export const InCallView: FC<InCallViewProps> = ({
       "spotlight-expanded": makeSpotlightExpandedLayout(inputs),
       "one-on-one-desktop": makeOneOnOneDesktopLayout(inputs),
       "one-on-one-mobile": makeOneOnOneMobileLayout(inputs),
+      "phone-voice": makePhoneVoiceLayout(inputs),
     };
   }, [gridBoundsObservable$]);
 
@@ -647,8 +652,14 @@ export const InCallView: FC<InCallViewProps> = ({
   );
 
   // Only hide the settings button if we have an AppBar header and we are showing the header
-  const footer = footerVm !== null && (
-    <CallFooter className={styles.footer} ref={footerRef} vm={footerVm} />
+  const footer = phoneVoiceMode ? (
+    <div className={styles.footerSlot}>
+      <VoiceFooter vm={vm} muteStates={props.muteStates} hidden={!showFooter} />
+    </div>
+  ) : (
+    footerVm !== null && (
+      <CallFooter className={styles.footer} ref={footerRef} vm={footerVm} />
+    )
   );
   const allConnections = useBehavior(vm.allConnections$);
 
@@ -664,6 +675,7 @@ export const InCallView: FC<InCallViewProps> = ({
       // Which layout the call has settled on, for tests and for anyone
       // wondering why the call looks the way it does at the size it was given
       data-layout={layout.type}
+      data-phone-voice-landscape={phoneVoiceLandscape ? "true" : undefined}
       onPointerUp={onViewPointerUp}
       onPointerMove={onPointerMove}
       onPointerOut={onPointerOut}
@@ -681,7 +693,7 @@ export const InCallView: FC<InCallViewProps> = ({
       {renderContent()}
       <CallEventAudioRenderer vm={vm} muted={muteAllAudio} />
       <ReactionsAudioRenderer vm={vm} muted={muteAllAudio} />
-      <RingingAudioRenderer vm={ringingVm} muted={muteAllAudio} />
+      <RingingAudioRenderer vm={ringingVm} muted={muteAllAudio || phoneVoiceMode} />
       {reconnectingToast}
       {screenShareToast}
       {earpieceOverlay}

@@ -75,6 +75,7 @@ import { gridLikeLayout } from "../GridLikeLayout";
 import { spotlightExpandedLayout } from "../SpotlightExpandedLayout";
 import { oneOnOneDesktopLayout } from "../OneOnOneDesktopLayout";
 import { oneOnOneMobileLayout } from "../OneOnOneMobileLayout";
+import { phoneVoiceLayout } from "../PhoneVoiceLayout";
 import { pipLayout } from "../PipLayout";
 import { type EncryptionSystem } from "../../e2ee/sharedKeyManagement";
 import {
@@ -195,6 +196,8 @@ export interface CallViewModelOptions {
   sendNotificationType?: RTCNotificationType;
   /** The kind of call being placed. */
   callIntent?: RTCCallIntent;
+  /** Use the phone-style voice layout when the local camera is off. */
+  phoneVoiceLayout?: boolean;
   autoLeaveWhenOthersLeft?: boolean;
   /**
    * If the call is started in a way where we want it to behave like a telephone usecase
@@ -247,6 +250,7 @@ export function callViewModelOptionsFromParams(
   | "hideScreensharing"
   | "sendNotificationType"
   | "callIntent"
+  | "phoneVoiceLayout"
 > {
   return {
     controlledAudioDevices: params.controlledAudioDevices,
@@ -255,6 +259,7 @@ export function callViewModelOptionsFromParams(
     hideScreensharing: params.hideScreensharing,
     sendNotificationType: params.sendNotificationType,
     callIntent: params.callIntent,
+    phoneVoiceLayout: params.phoneVoiceLayout,
   };
 }
 
@@ -309,7 +314,7 @@ export interface CallViewModel {
   /**
    * Which visual element the ringing status should be shown in.
    */
-  ringingStatusLocation: "app_bar" | "tile";
+  ringingStatusLocation: "app_bar" | "tile" | "none";
   /** Observable that emits when the user should leave the call (hangup pressed, widget action, error).
    * THIS DOES NOT LEAVE THE CALL YET. The only way to leave the call (send the hangup event) is
    *  - by ending the scope
@@ -481,6 +486,10 @@ export interface CallViewModel {
    * Shortcut for not requireing to parse and combine connectionState.matrix and connectionState.livekit
    */
   connected$: Behavior<boolean>;
+  /** True when the phone-style voice layout should replace one-on-one media. */
+  phoneVoiceMode$: Behavior<boolean>;
+  /** True when phone voice should use its mobile landscape split. */
+  phoneVoiceLandscape$: Behavior<boolean>;
 }
 
 /**
@@ -520,6 +529,7 @@ export function createCallViewModel$(
     hideScreensharing = false,
     sendNotificationType,
     callIntent,
+    phoneVoiceLayout = false,
   } = options;
 
   const livekitKeyProvider = getE2eeKeyProvider(
@@ -1303,11 +1313,22 @@ export function createCallViewModel$(
       window.controls.onPipMediaOrientationUpdate?.(orientation);
     });
 
-  /**
-   * The media to be used to produce a layout.
-   */
-  const layoutMedia$ = scope.behavior<LayoutMedia>(
-    windowMode$.pipe(
+  const phoneVoiceMode$ = scope.behavior<boolean>(
+    muteStates.video.enabled$.pipe(
+      map((videoEnabled) => phoneVoiceLayout && !videoEnabled),
+    ),
+  );
+
+  const phoneVoiceLandscape$ = scope.behavior<boolean>(
+    combineLatest([phoneVoiceMode$, windowMode$]).pipe(
+      map(
+        ([phoneVoice, windowMode]) =>
+          phoneVoice && windowMode === "flat" && platform !== "desktop",
+      ),
+    ),
+  );
+
+  const rawLayoutMedia$: Observable<LayoutMedia> = windowMode$.pipe(
       switchMap((windowMode) => {
         switch (windowMode) {
           case "normal":
@@ -1367,6 +1388,28 @@ export function createCallViewModel$(
             return pipLayoutMedia$;
         }
       }),
+    );
+
+  const layoutMedia$ = scope.behavior<LayoutMedia>(
+    combineLatest([rawLayoutMedia$, phoneVoiceMode$]).pipe(
+      map(([media, phoneVoice]) => {
+        if (!phoneVoice) return media;
+        switch (media.type) {
+          case "one-on-one-desktop":
+          case "one-on-one-mobile":
+            return {
+              type: "phone-voice",
+              edgeToEdge: media.edgeToEdge,
+              spotlight: media.spotlight,
+            };
+          case "spotlight-expanded":
+            return media.pip === undefined
+              ? media
+              : { ...media, pip: undefined };
+          default:
+            return media;
+        }
+      }),
     ),
   );
 
@@ -1391,6 +1434,7 @@ export function createCallViewModel$(
           case "spotlight-expanded":
           case "one-on-one-desktop":
           case "one-on-one-mobile":
+          case "phone-voice":
             return false;
           default:
             return true;
@@ -1644,6 +1688,9 @@ export function createCallViewModel$(
               );
               pip = layout.pip;
               break;
+            case "phone-voice":
+              [layout, newTiles] = phoneVoiceLayout(media, prevTiles);
+              break;
             case "pip":
               [layout, newTiles] = pipLayout(media, prevTiles);
               break;
@@ -1845,7 +1892,11 @@ export function createCallViewModel$(
   return {
     autoLeave$: autoLeave$,
     ringingVm$: ringingMedia$,
-    ringingStatusLocation: header === HeaderStyle.AppBar ? "app_bar" : "tile",
+    ringingStatusLocation: phoneVoiceLayout
+      ? "none"
+      : header === HeaderStyle.AppBar
+        ? "app_bar"
+        : "tile",
     leave$: leave$,
     hangup: (): void => userHangup$.next(),
     join: localMembership.requestJoinAndPublish,
@@ -1926,6 +1977,8 @@ export function createCallViewModel$(
     connected$: localMembership.connected$,
     screenShareError$: localMembership.screenShareError$,
     dismissScreenShareError: localMembership.dismissScreenShareError,
+    phoneVoiceMode$,
+    phoneVoiceLandscape$,
   };
 }
 
