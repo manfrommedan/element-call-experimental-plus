@@ -255,5 +255,23 @@
     "screen_share_volume": "Screen share volume",
     "volume": "Volume",
     "waiting_for_media": "Waiting for media..."
+  },
+  "voice_layout": {
+    "audio_output": "Audio output",
+    "audio_output_default": "Default",
+    "audio_output_picker_title": "Audio output",
+    "audio_output_unnamed": "Audio device {{number}}",
+    "hangup": "End call",
+    "microphone_off": "Muted",
+    "microphone_on": "Microphone",
+    "participants_count_one": "{{count}} participant",
+    "participants_count_other": "{{count}} participants",
+    "phase_connecting": "Connecting…",
+    "phase_reconnecting": "Reconnecting…",
+    "phase_ringing": "Ringing…",
+    "regular_call": "Regular call",
+    "speakerphone": "Speakerphone",
+    "video_off": "Switch to video",
+    "video_on": "Camera on"
   }
 }
