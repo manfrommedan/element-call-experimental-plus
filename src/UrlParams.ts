@@ -241,6 +241,8 @@ export interface UrlConfiguration {
   noiseSuppression?: boolean;
 
   callIntent?: RTCCallIntent;
+
+  phoneVoiceLayout: boolean;
 }
 
 // If you need to add a new flag to this interface, prefer a name that describes
@@ -377,6 +379,7 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     sendNotificationType: "notification",
     autoLeaveWhenOthersLeft: false,
     waitForCallPickup: false,
+    phoneVoiceLayout: false,
   };
   switch (intent) {
     case UserIntent.StartNewCall:
@@ -432,6 +435,7 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
         sendNotificationType: undefined,
         autoLeaveWhenOthersLeft: false,
         waitForCallPickup: false,
+        phoneVoiceLayout: false,
       };
   }
 
@@ -485,6 +489,7 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     autoLeaveWhenOthersLeft: parser.getFlag("autoLeave"),
     noiseSuppression: parser.getFlagParam("noiseSuppression", true),
     echoCancellation: parser.getFlagParam("echoCancellation", true),
+    phoneVoiceLayout: parser.getFlag("phoneVoiceLayout"),
   };
 
   // Log the final configuration for debugging purposes.
@@ -499,11 +504,19 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     configuration,
   );
 
-  return {
+  const merged = {
     ...properties,
     ...intentPreset,
     ...pickBy(configuration, (v?: unknown) => v !== undefined),
   };
+
+  // Rust SDK has no JOIN_EXISTING_VOICE / START_CALL_VOICE intent yet, so
+  // phoneVoiceLayout=true is the authoritative voice-call signal for groups.
+  if (merged.phoneVoiceLayout === true) {
+    merged.callIntent = "audio";
+  }
+
+  return merged;
 };
 
 /**

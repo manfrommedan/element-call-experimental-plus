@@ -8,19 +8,17 @@ Please see LICENSE in the repository root for full details.
 import { logger } from "matrix-js-sdk/lib/logger";
 import { type RTCCallIntent } from "matrix-js-sdk/lib/matrixrtc";
 
-/**
- * Calculates the initial mute state for media devices based on configuration.
- *
- * It is not always possible to start the widget with audio/video unmuted due to privacy concerns.
- * This function encapsulates the logic to determine the appropriate initial state.
- */
+// phoneVoiceLayout overrides callIntent because the Rust SDK has no
+// JOIN_EXISTING_VOICE / START_CALL_VOICE variants yet, so group voice calls
+// can't be expressed through callIntent alone.
 export function calculateInitialMuteState(
   skipLobby: boolean,
   callIntent: RTCCallIntent | undefined,
   isWidgetMode: boolean,
+  phoneVoiceLayout: boolean = false,
 ): { audioEnabled: boolean; videoEnabled: boolean } {
   logger.debug(
-    `calculateInitialMuteState: skipLobby=${skipLobby}, callIntent=${callIntent} isWidgetMode=${isWidgetMode}`,
+    `calculateInitialMuteState: skipLobby=${skipLobby}, callIntent=${callIntent} isWidgetMode=${isWidgetMode} phoneVoiceLayout=${phoneVoiceLayout}`,
   );
 
   if (skipLobby && !isWidgetMode) {
@@ -34,9 +32,11 @@ export function calculateInitialMuteState(
 
   // Embedded contexts are trusted environments, so they allow unmuted by default.
   // Same for when showing a lobby, as users can adjust their settings there.
-  // Additionally, if the call intent is "audio", we disable video by default.
+  // Video starts disabled when the call intent is "audio" or when the host
+  // has flagged this as a phone-style voice call.
+  const isVoiceCall = callIntent === "audio" || phoneVoiceLayout;
   return {
     audioEnabled: true,
-    videoEnabled: callIntent != "audio",
+    videoEnabled: !isVoiceCall,
   };
 }
