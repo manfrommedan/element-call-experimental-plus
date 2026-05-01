@@ -23,9 +23,10 @@ export function calculateInitialMuteState(
   skipLobby: boolean,
   callIntent: RTCCallIntent | undefined,
   allowJoinUnmutedViaIntent: boolean,
+  phoneVoiceLayout: boolean = false,
 ): { audioEnabled: boolean; videoEnabled: boolean } {
   logger.debug(
-    `calculateInitialMuteState: skipLobby=${skipLobby}, callIntent=${callIntent} allowJoinUnmutedViaIntent=${allowJoinUnmutedViaIntent}`,
+    `calculateInitialMuteState: skipLobby=${skipLobby}, callIntent=${callIntent} allowJoinUnmutedViaIntent=${allowJoinUnmutedViaIntent} phoneVoiceLayout=${phoneVoiceLayout}`,
   );
 
   if (skipLobby && !allowJoinUnmutedViaIntent) {
@@ -44,6 +45,6 @@ export function calculateInitialMuteState(
   // disable video by default.
   return {
     audioEnabled: true,
-    videoEnabled: callIntent != "audio",
+    videoEnabled: callIntent != "audio" && !phoneVoiceLayout,
   };
 }

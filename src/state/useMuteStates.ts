@@ -40,6 +40,7 @@ export function useMuteStates(): MuteStates | null {
           urlParams.skipLobby,
           urlParams.callIntent,
           hostBridge.allowJoinUnmutedViaIntent,
+          urlParams.phoneVoiceLayout,
         ),
         hostBridge,
       ),

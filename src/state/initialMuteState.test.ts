@@ -70,3 +70,40 @@ test.each<{
     expect(videoEnabled).toBe(callIntent !== "audio");
   },
 );
+
+// `phoneVoiceLayout` is the Element X "phone-style voice calls" Labs flag.
+// When set it must force video off even if `callIntent` is video or unknown
+// (group voice calls hit this path because the Rust SDK does not yet expose
+// group voice intent variants, so callIntent always resolves to video).
+test.each<{
+  callIntent: RTCCallIntent;
+}>([
+  { callIntent: "audio" },
+  { callIntent: "video" },
+  { callIntent: "unknown" },
+])(
+  "phoneVoiceLayout forces video off in widget mode (callIntent: $callIntent)",
+  ({ callIntent }) => {
+    const { audioEnabled, videoEnabled } = calculateInitialMuteState(
+      true,
+      callIntent,
+      true,
+      true,
+    );
+    expect(audioEnabled).toBe(true);
+    expect(videoEnabled).toBe(false);
+  },
+);
+
+test("phoneVoiceLayout still respects SPA skip-lobby privacy mute", () => {
+  // SPA + skipLobby protects user privacy by starting muted regardless of
+  // host hints. The phone-style flag must not break that contract.
+  const { audioEnabled, videoEnabled } = calculateInitialMuteState(
+    true,
+    "video",
+    false,
+    true,
+  );
+  expect(audioEnabled).toBe(false);
+  expect(videoEnabled).toBe(false);
+});

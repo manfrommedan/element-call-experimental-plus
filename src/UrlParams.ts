@@ -385,6 +385,7 @@ export function configurationForIntent(intent: UserIntent): UrlConfiguration {
     sendNotificationType: "notification",
     autoLeaveWhenOthersLeft: false,
     waitForCallPickup: false,
+    phoneVoiceLayout: false,
   };
   switch (intent) {
     case UserIntent.StartNewCall:
@@ -440,6 +441,7 @@ export function configurationForIntent(intent: UserIntent): UrlConfiguration {
         sendNotificationType: undefined,
         autoLeaveWhenOthersLeft: false,
         waitForCallPickup: false,
+        phoneVoiceLayout: false,
       };
   }
   return preset;
@@ -588,6 +590,13 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     ...intentPreset,
     ...pickBy(configuration, (v?: unknown) => v !== undefined),
   };
+
+  // Rust SDK has no group voice intent variants, so this is the authoritative voice-call signal.
+  if (merged.phoneVoiceLayout === true) {
+    merged.callIntent = "audio";
+  }
+
+  return merged;
 };
 
 const UrlParamsContext = createContext<UrlParams | null>(null);
