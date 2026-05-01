@@ -243,11 +243,7 @@ export interface UrlConfiguration {
   callIntent?: RTCCallIntent;
 
   /**
-   * Whether to render 1:1 voice calls in a phone-style classic layout
-   * (mute / speaker / video / hang up) instead of the standard footer
-   * and lobby. The embedding host opts in by passing
-   * `?phoneVoiceLayout=true` (or in the URL fragment query). Defaults
-   * to `false`, so omitting the flag preserves upstream behaviour.
+   * Phone-style classic call layout. Host opts in via `?phoneVoiceLayout=true`.
    */
   phoneVoiceLayout: boolean;
 }
@@ -517,16 +513,8 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     ...pickBy(configuration, (v?: unknown) => v !== undefined),
   };
 
-  // The Rust SDK does not yet expose group voice intent variants
-  // (JOIN_EXISTING_VOICE / START_CALL_VOICE), so for a group voice call the
-  // host (Element X) cannot pick a UserIntent that yields callIntent="audio".
-  // Treat phoneVoiceLayout=true as the authoritative voice-call signal: it
-  // is the same flag the host already uses to opt into the phone-style UI,
-  // so when it is set we know the call is meant to be voice, regardless of
-  // what the intent preset would otherwise resolve to. Without this, the
-  // matrix RTC notification event ends up carrying callIntent="video" and
-  // the receiver's incoming-call notification offers a "decline / video"
-  // pair instead of "decline / accept".
+  // Rust SDK has no JOIN_EXISTING_VOICE / START_CALL_VOICE intent yet, so
+  // phoneVoiceLayout=true is the authoritative voice-call signal for groups.
   if (merged.phoneVoiceLayout === true) {
     merged.callIntent = "audio";
   }
