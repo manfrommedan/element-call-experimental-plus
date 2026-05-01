@@ -1,4 +1,15 @@
-# Element Call
+# Element Call - experiments
+
+> ⚠️ **Unofficial experimental fork.**
+> Not affiliated with, endorsed by, or coordinated with Element Hq Ltd. or the
+> Element Call team. We are not the authors of the underlying project - please refer
+> to the upstream repository for documentation, support, and credit.
+>
+> Works as is, at your own risk. Please don't kick us.
+
+Upstream: [**element-hq/element-call**](https://github.com/element-hq/element-call)
+
+What this fork changes: see [EXPERIMENTS.md](EXPERIMENTS.md).
 
 [![Chat](https://img.shields.io/matrix/webrtc:matrix.org)](https://matrix.to/#/#webrtc:matrix.org)
 [![Localazy](https://img.shields.io/endpoint?url=https%3A%2F%2Fconnect.localazy.com%2Fstatus%2Felement-call%2Fdata%3Fcontent%3Dall%26title%3Dlocalazy%26logo%3Dtrue)](https://localazy.com/p/element-call)
