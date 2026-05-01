@@ -136,7 +136,12 @@ export interface SpotlightExpandedLayoutSummary {
 export interface OneOnOneLayoutSummary {
   type: "one-on-one";
   spotlight: string;
-  pip?: string;
+  pip: string;
+}
+
+export interface PhoneVoiceLayoutSummary {
+  type: "phone-voice";
+  spotlight: string;
 }
 
 export interface PipLayoutSummary {
@@ -150,6 +155,7 @@ export type LayoutSummary =
   | SpotlightPortraitLayoutSummary
   | SpotlightExpandedLayoutSummary
   | OneOnOneLayoutSummary
+  | PhoneVoiceLayoutSummary
   | PipLayoutSummary;
 
 function summarizeLayout$(l$: Observable<Layout>): Observable<LayoutSummary> {
@@ -189,12 +195,19 @@ function summarizeLayout$(l$: Observable<Layout>): Observable<LayoutSummary> {
           );
         case "one-on-one":
           return combineLatest(
-            [l.spotlight.media$, l.pip?.media$ ?? constant(undefined)],
+            [l.spotlight.media$, l.pip.media$],
             (spotlight, pip) => ({
               type: l.type,
               spotlight: spotlight.id,
-              pip: pip?.id,
+              pip: pip.id,
             }),
+          );
+        case "phone-voice":
+          return l.spotlight.media$.pipe(
+            map((spotlight) => ({
+              type: l.type,
+              spotlight: spotlight.id,
+            })),
           );
         case "pip":
           return l.spotlight.media$.pipe(

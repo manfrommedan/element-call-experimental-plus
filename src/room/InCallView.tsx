@@ -58,6 +58,7 @@ import {
   defaultSpotlightAlignment,
 } from "../grid/CallLayout";
 import { makeOneOnOneLayout } from "../grid/OneOnOneLayout";
+import { makePhoneVoiceLayout } from "../grid/PhoneVoiceLayout";
 import { makeSpotlightExpandedLayout } from "../grid/SpotlightExpandedLayout";
 import { makeSpotlightLandscapeLayout } from "../grid/SpotlightLandscapeLayout";
 import { makeSpotlightPortraitLayout } from "../grid/SpotlightPortraitLayout";
@@ -516,6 +517,7 @@ export const InCallView: FC<InCallViewProps> = ({
       "spotlight-portrait": makeSpotlightPortraitLayout(inputs),
       "spotlight-expanded": makeSpotlightExpandedLayout(inputs),
       "one-on-one": makeOneOnOneLayout(inputs),
+      "phone-voice": makePhoneVoiceLayout(inputs),
     };
   }, [gridBoundsObservable$, spotlightAlignment$, pipAlignment$, muteStates]);
 

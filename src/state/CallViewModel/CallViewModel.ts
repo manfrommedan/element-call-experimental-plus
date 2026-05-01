@@ -69,6 +69,7 @@ import { TileStore } from "../TileStore";
 import { gridLikeLayout } from "../GridLikeLayout";
 import { spotlightExpandedLayout } from "../SpotlightExpandedLayout";
 import { oneOnOneLayout } from "../OneOnOneLayout";
+import { phoneVoiceLayout } from "../PhoneVoiceLayout";
 import { pipLayout } from "../PipLayout";
 import { type EncryptionSystem } from "../../e2ee/sharedKeyManagement";
 import {
@@ -1266,26 +1267,21 @@ export function createCallViewModel$(
       }),
     );
 
-  /**
-   * The media used to produce a layout, with the phone-style pip suppression
-   * applied. When the host has opted into the phone-style call layout via
-   * the `phoneVoiceLayout` URL flag and the local user has not enabled video
-   * (i.e. [phoneVoiceMode$] is true), every floating pip tile is dropped
-   * regardless of which layout is in play. Centralising the rule here is the
-   * single source of truth, so future layout-selection branches do not need
-   * to remember to gate their pips individually. The grid contents remain
-   * untouched: the underlying layout still draws spotlight and any tile
-   * grid, the VoiceFooter renders on top, and only the floating self-tile
-   * is hidden because the dock already conveys the local presence.
-   */
+  // When phoneVoiceMode$ is on: 1:1 routes through PhoneVoiceLayout (its own
+  // layout slot, no pip), and any other layout that still has a floating pip
+  // drops it so the VoiceFooter is the only local-presence affordance.
   const layoutMedia$ = scope.behavior<LayoutMedia>(
     combineLatest([rawLayoutMedia$, phoneVoiceMode$]).pipe(
       map(([media, phoneVoice]) => {
         if (!phoneVoice) return media;
-        if ("pip" in media && media.pip !== undefined) {
-          return { ...media, pip: undefined };
+        switch (media.type) {
+          case "one-on-one":
+            return { type: "phone-voice", spotlight: media.spotlight };
+          case "spotlight-expanded":
+            return media.pip === undefined ? media : { ...media, pip: undefined };
+          default:
+            return media;
         }
-        return media;
       }),
     ),
   );
@@ -1326,6 +1322,9 @@ export function createCallViewModel$(
               break;
             case "one-on-one":
               [layout, newTiles] = oneOnOneLayout(media, prevTiles);
+              break;
+            case "phone-voice":
+              [layout, newTiles] = phoneVoiceLayout(media, prevTiles);
               break;
             case "pip":
               [layout, newTiles] = pipLayout(media, prevTiles);

@@ -43,21 +43,3 @@ Please see LICENSE in the repository root for full details.
 .slot[data-inline-alignment="end"] {
   inset-inline-start: unset;
 }
-
-/*
- * Phone-style 1:1 voice mode: gated on `model.pip === undefined` (see
- * OneOnOneLayout.tsx and CallViewModel.localUserMediaForPip$). The spotlight
- * tile paints across the whole layer, the avatar inside the tile grows to
- * phone-call proportions, and the tile chrome adopts the canvas colour so
- * the avatar reads as the dominant element instead of a thumbnail floating
- * inside a darker tile.
- */
-.layer.audioMode {
-  --video-tile-background: var(--cpd-color-bg-canvas-default);
-  --media-view-border-radius: 0;
-}
-
-.layer.audioMode .container {
-  inline-size: 100% !important;
-  block-size: 100% !important;
-}

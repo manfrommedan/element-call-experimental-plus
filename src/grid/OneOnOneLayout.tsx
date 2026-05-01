@@ -18,10 +18,6 @@ import { useBehavior } from "../useBehavior";
 /**
  * An implementation of the "one-on-one" layout, in which the remote participant
  * is shown at maximum size, overlaid by a small view of the local participant.
- *
- * When the model omits `pip` (phone-style 1:1 voice mode, gated upstream in
- * CallViewModel), the spotlight tile is expanded to fill the layer and the
- * local self-tile is not rendered at all.
  */
 export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
   minBounds$,
@@ -42,13 +38,6 @@ export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
       () => arrangeTiles(width, height, 1),
       [width, height],
     );
-    // The model-level pip gate (see CallViewModel.localUserMediaForPip$ and
-    // oneOnOneLayoutMedia$) is the single source of truth for whether the
-    // self-tile renders. Reflect "no pip" in the layout chrome too: paint
-    // the spotlight tile across the whole view and let the avatar grow to
-    // phone-call proportions, rather than keeping the desktop-style remote
-    // + local-PiP arrangement that assumes both tiles are visible.
-    const audioMode = model.pip === undefined;
 
     const onDragLocalTile: DragCallback = useCallback(
       ({ xRatio, yRatio }) =>
@@ -60,28 +49,21 @@ export const makeOneOnOneLayout: CallLayout<OneOnOneLayoutModel> = ({
     );
 
     return (
-      <div
-        ref={ref}
-        className={classNames(styles.layer, {
-          [styles.audioMode]: audioMode,
-        })}
-      >
+      <div ref={ref} className={styles.layer}>
         <Slot
           id={model.spotlight.id}
           model={model.spotlight}
           className={styles.container}
           style={{ width: tileWidth, height: tileHeight }}
         >
-          {model.pip && (
-            <Slot
-              className={classNames(styles.slot, styles.local)}
-              id={model.pip.id}
-              model={model.pip}
-              onDrag={onDragLocalTile}
-              data-block-alignment={pipAlignmentValue.block}
-              data-inline-alignment={pipAlignmentValue.inline}
-            />
-          )}
+          <Slot
+            className={classNames(styles.slot, styles.local)}
+            id={model.pip.id}
+            model={model.pip}
+            onDrag={onDragLocalTile}
+            data-block-alignment={pipAlignmentValue.block}
+            data-inline-alignment={pipAlignmentValue.inline}
+          />
         </Slot>
       </div>
     );
