@@ -19,6 +19,14 @@ export default defineConfig((env) =>
     defineConfig({
       base, // Use relative URLs to allow the app to be hosted under any path
       publicDir: false, // Don't serve the public directory which only contains the favicon
+      build: {
+        // Source maps are not useful inside the embedded WebView (no
+        // devtools at runtime) and account for ~17 MB of dead weight in
+        // the host APK. Drop them for embedded builds; the dev SPA build
+        // keeps sourcemap=true through the parent config so local
+        // debugging is unaffected.
+        sourcemap: false,
+      },
       plugins: [
         generateFile([
           {
