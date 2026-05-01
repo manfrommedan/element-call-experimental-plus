@@ -241,10 +241,6 @@ export const InCallView: FC<InCallViewProps> = ({
     () => void toggleRaisedHand(),
   );
 
-  // Phone-style 1:1 voice mode signal — `true` while the host opted in via
-  // the `phoneVoiceLayout` URL flag and the local user hasn't enabled their
-  // camera. Sourced from CallViewModel rather than re-derived here so the
-  // UI tracks the same boolean every layout downstream of it sees.
   const phoneVoiceMode = useBehavior(vm.phoneVoiceMode$);
 
   const ringing = useBehavior(vm.ringing$);
@@ -269,9 +265,7 @@ export const InCallView: FC<InCallViewProps> = ({
     throw fatalCallError;
   }
 
-  // While ringing, loop the ringtone — but skip it when the phone-style voice
-  // layout is active, where VoiceFooter synthesises its own classic two-tone
-  // dial tone and the mp3 loop would double up.
+  // While ringing, loop the ringtone (VoiceFooter has its own dial tone).
   useEffect((): void | (() => void) => {
     const audio = latestPickupPhaseAudio.current;
     if (ringing && audio && !phoneVoiceMode) {
@@ -436,12 +430,6 @@ export const InCallView: FC<InCallViewProps> = ({
     </>
   );
 
-  // The earpiece overlay is the upstream "phone-at-your-ear" splash that hides
-  // the media tiles when the user routes audio to the built-in earpiece. With
-  // our phone-style VoiceFooter as the primary UI there are no media tiles
-  // worth covering, so the overlay is redundant — it would just obscure our
-  // footer behind a generic upsell to "go back to video". Suppress it only
-  // when the host has opted into the phone-style layout.
   const earpieceOverlay = (
     <EarpieceOverlay
       show={earpieceMode && !reconnecting && !phoneVoiceMode}
@@ -450,9 +438,7 @@ export const InCallView: FC<InCallViewProps> = ({
   );
 
   // If the reconnecting toast or earpiece overlay obscures the media tiles, we
-  // need to remove them from the accessibility tree and block focus. Phone-
-  // style voice calls intentionally leave earpieceMode unhandled here for the
-  // same reason.
+  // need to remove them from the accessibility tree and block focus.
   const contentObscured =
     reconnecting || (earpieceMode && !phoneVoiceMode);
 
@@ -593,11 +579,6 @@ export const InCallView: FC<InCallViewProps> = ({
     />,
   );
 
-  // Phone-style footer for opted-in 1:1 voice calls — three primary controls
-  // plus a bottom-sheet audio-output picker — and the standard upstream
-  // footer (mic / camera / share / reactions / settings) for everything else.
-  // We still let video drive the upstream layouts so toggling the camera mid
-  // call (either side) lights up the video tiles automatically.
   // Only hide the settings button if we have an AppBar header and we are showing the header
   const footer = phoneVoiceMode ? (
     <VoiceFooter vm={vm} muteStates={muteStates} hidden={!showFooter} />
@@ -638,13 +619,7 @@ export const InCallView: FC<InCallViewProps> = ({
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
     <div
       className={styles.inRoom}
-      // WhatsApp-style landscape split — when phone-style voice mode is
-      // active, the platform is mobile (Android / iOS), and the window is
-      // in `flat` mode (a phone in landscape orientation), the accompanying
-      // CSS rule moves the spotlight tile into the left half and pins the
-      // VoiceFooter to the right half. The platform gate keeps a desktop
-      // user who shrinks their browser window to landscape-phone-shape on
-      // the upstream column flow.
+      // CSS-driven landscape split: spotlight | VoiceFooter on mobile flat.
       data-phone-voice-landscape={
         phoneVoiceMode && windowMode === "flat" && platform !== "desktop"
           ? "true"
@@ -671,10 +646,6 @@ export const InCallView: FC<InCallViewProps> = ({
       {reconnectingToast}
       {earpieceOverlay}
       <ReactionsOverlay vm={vm} />
-      {/* Wrapper exists so the WhatsApp-style landscape split (driven by */}
-      {/* `data-phone-voice-landscape` on `.inRoom`) has a single grid cell */}
-      {/* to bind the footer to without reaching across module boundaries. */}
-      {/* `display: contents` keeps it a no-op in every other layout. */}
       <div className={styles.footerSlot}>{footer}</div>
       {layout.type !== "pip" && (
         <>
