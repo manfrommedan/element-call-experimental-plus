@@ -35,40 +35,21 @@ import { useMediaDevices } from "../MediaDevicesContext";
 import { Modal } from "../Modal";
 import styles from "./VoiceFooter.module.css";
 
-/** How long the video button stays in optimistic-pending state before it
- * gives up waiting for the camera publication to land. Permission denials
- * never resolve, so without a cap the spinner would spin forever. */
+// Cap so a denied CAMERA permission doesn't leave the spinner stuck.
 const VIDEO_TOGGLE_PENDING_TIMEOUT_MS = 5_000;
-
-/** Audio-only calls skip the lobby, so the very first toggle of the video
- * button races the Android CAMERA permission dialog: the first getUserMedia
- * call rejects before the user has accepted, and the second press is what
- * actually enables video. Re-issue the toggle on a short interval until the
- * camera comes up — once permission is granted the next retry's
- * getUserMedia resolves and videoEnabled flips, stopping the loop. */
+// Retry past the Android permission dialog race on the first toggle.
 const VIDEO_TOGGLE_RETRY_INTERVAL_MS = 300;
 
-/** Vibration durations for the three haptic flavours (ms). */
 const HAPTIC_TAP_MS = 15;
 const HAPTIC_CONNECT_MS = 25;
 const HAPTIC_HANGUP_MS = 40;
 
-/** North-American "precise" ringback pair (Hz). */
+// North-American "precise" ringback (Bell cadence: 2 s on, 4 s off).
 const RINGBACK_FREQUENCIES_HZ = [440, 480] as const;
-
-/** Bell-System cadence: 2 s tone followed by 4 s of silence. */
 const RINGBACK_PULSE_DURATION_S = 2;
 const RINGBACK_CADENCE_MS = 6_000;
-/**
- * Shared gain applied to the sum of both oscillators. The 440 + 480 Hz pair
- * beats at 40 Hz, so their instantaneous sum peaks at 2× a single sine's
- * amplitude. With both oscillators feeding one gain node at 0.35 the combined
- * peak caps at ~0.70 — safely below the destination's [-1, 1] clipping
- * threshold even after browser-side mixing, which removes the high-frequency
- * crackle that came from grazing clipping at the previous 0.5 setting.
- */
+// 0.35 × 2 oscillators = 0.70 peak; sits below the [-1, 1] clip ceiling.
 const RINGBACK_GAIN = 0.35;
-/** Envelope ramp at pulse start/end. Smooths osc.start/stop discontinuities. */
 const RINGBACK_RAMP_S = 0.08;
 
 interface Props {
@@ -77,15 +58,6 @@ interface Props {
   hidden?: boolean;
 }
 
-/**
- * Phone-style footer for opted-in 1:1 voice calls: three primary controls
- * (microphone toggle, audio-output picker, hangup) plus light haptic
- * feedback on every tap. Replaces the standard {@link CallFooter} when the
- * embedding host passes `phoneVoiceLayout=true` in the call URL — which the
- * Element X Labs toggle ("Phone-style voice calls") opts into. The rest of
- * the in-call UI (avatars, member tiles, auto video upgrade) remains the
- * upstream layout.
- */
 export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const { t } = useTranslation();
   const audioEnabled = useObservableEagerState(muteStates.audio.enabled$);
@@ -94,8 +66,6 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
   const participantCount = useObservableEagerState(vm.participantCount$);
   const ringing = useObservableEagerState(vm.ringing$);
-  // Caller-side outgoing call before the remote side joins LiveKit. Drives the
-  // "Соединение…" status text in the timer slot and its pulse animation.
   const isWaitingForRemote = participantCount <= 1;
   const elapsedSeconds = useElapsedSeconds(!isWaitingForRemote);
 
@@ -108,35 +78,17 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   );
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Outgoing-call ringback while the recipient hasn't picked up yet. Driven by
-  // the same `ringing$` signal upstream uses for its ringtone.mp3 loop, so the
-  // two-tone dial tone stops the moment the call is picked up — using
-  // participantCount as a proxy was racy because the LiveKit room can take a
-  // beat to register the new participant after the recipient answers, leaving
-  // the caller hearing ringback over a connected line. Upstream's mp3 loop is
-  // suppressed in InCallView for audio-intent calls so the two don't double up.
   useOutgoingRingback(ringing);
   useConnectHaptic(participantCount > 1);
   useNotifyHostOnRemoteJoined(participantCount > 1);
 
-  // Camera initialisation costs a noticeable beat (OS permission check + sensor
-  // wake + LiveKit publication), and the video button stays visually idle for
-  // that whole window if we wait on `videoEnabled` alone. Track a separate
-  // "request pending" flag that flips on as soon as the user taps so the
-  // button reads as active immediately and a spinner indicates we're working
-  // on it. Cleared when the actual state catches up, or after a 5 s timeout
-  // so a denied permission doesn't leave the button stuck in pending.
+  // Optimistic-pending until videoEnabled catches up or the timeout fires.
   const [videoPending, setVideoPending] = useState(false);
   useEffect(() => {
     if (videoPending && videoEnabled) setVideoPending(false);
   }, [videoEnabled, videoPending]);
   useEffect(() => {
     if (!videoPending) return undefined;
-    // Audio-only calls skip the lobby, so the WebView never pre-warmed the
-    // CAMERA runtime permission. The first toggle race-loses against the
-    // Android permission dialog and the deferred getUserMedia rejects. Poll
-    // toggleVideo on a short interval; the moment permission lands the next
-    // retry's getUserMedia resolves and videoEnabled flips, ending the loop.
     const retryId = setInterval(() => {
       if (!videoEnabled && toggleVideo) toggleVideo();
     }, VIDEO_TOGGLE_RETRY_INTERVAL_MS);
@@ -157,13 +109,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
         const kind = outputKindOf(label);
         return {
           id,
-          // Full per-device description shown in the output-picker sheet so
-          // the user can disambiguate between several connected devices.
           label: describeOutputLabel(label, t),
-          // Short generic label shown directly under the row button. We
-          // never put device-specific names here — a long Bluetooth vendor
-          // string would either truncate awkwardly or push the row off the
-          // screen.
           kindLabel: genericLabelForOutputKind(kind, t),
           kind,
         };
@@ -171,15 +117,8 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
     [availableOutputs, t],
   );
   const activeOutput = outputs.find((o) => o.id === selectedOutput?.id);
-  // Highlight the audio-output button when the user has picked anything other
-  // than the default earpiece path; the change of route is the signal that
-  // makes the button worth glancing at, otherwise it sits as a plain control.
   const isAlternateOutputActive =
     activeOutput !== undefined && activeOutput.kind !== "earpiece";
-  // Reflect the active route in the button icon so the user can read the
-  // current output at a glance: each kind gets a dedicated glyph rather
-  // than a shared generic one. Earpiece-default routing reads as a regular
-  // phone handset so the button does not have to lean on a literal ear.
   const audioOutputIcon = useMemo(() => {
     switch (activeOutput?.kind) {
       case "speaker":
@@ -391,11 +330,6 @@ function outputKindOf(label: AudioOutputDeviceLabel): OutputKind {
   }
 }
 
-/**
- * Short generic label rendered directly under the row button. Never
- * carries device-specific names — those go in the output picker sheet —
- * so a long Bluetooth vendor string can never push the row off-centre.
- */
 function genericLabelForOutputKind(kind: OutputKind, t: TFunction): string {
   switch (kind) {
     case "speaker":
@@ -421,12 +355,6 @@ function iconForOutputKind(kind: OutputKind): ReactNode {
   }
 }
 
-/**
- * Light haptic feedback for the primary controls. Mirrors the WhatsApp /
- * native-dialer feel: taps get a short tick, hangup gets a slightly stronger
- * burst so it feels decisive. Silently no-ops when the Vibration API is
- * unavailable.
- */
 function haptic(kind: "tap" | "hangup" | "connect"): void {
   if (typeof navigator === "undefined" || !navigator.vibrate) return;
   switch (kind) {
@@ -442,10 +370,6 @@ function haptic(kind: "tap" | "hangup" | "connect"): void {
   }
 }
 
-/**
- * Counts wall-clock seconds since the call became active. Frozen at zero
- * before that and ticks once a second afterwards.
- */
 function useElapsedSeconds(active: boolean): number {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [, setTick] = useState(0);
@@ -470,17 +394,8 @@ function formatTimer(totalSeconds: number): string {
     : `${minutes}:${pad(seconds)}`;
 }
 
-/**
- * Notifies the embedding host (e.g. Element X's call activity) that the
- * remote side has joined the call so it can stamp the call-summary timer
- * accurately — neither the local LiveKit join nor the first DeviceMute
- * echo are reliable proxies for that moment, so we surface a dedicated
- * widget-API message and let the host snoop on it.
- *
- * Fires once per active session; the message is shaped like a regular
- * fromWidget request so existing widget-message infrastructure forwards it
- * unchanged.
- */
+// Surfaces a fromWidget message so the embedding host (Element X) can
+// stamp the call-summary timer; LiveKit join / DeviceMute echo are unreliable.
 function useNotifyHostOnRemoteJoined(joined: boolean): void {
   const [hasFired, setHasFired] = useState(false);
   useEffect(() => {
@@ -499,11 +414,6 @@ function useNotifyHostOnRemoteJoined(joined: boolean): void {
   }, [joined, hasFired]);
 }
 
-/**
- * Subtle haptic the moment the call moves from "alone in the room" to
- * "remote participant joined" — the WhatsApp acknowledgement that the
- * other side picked up. Fires once per connect transition.
- */
 function useConnectHaptic(connected: boolean): void {
   const [hasFired, setHasFired] = useState(false);
   useEffect(() => {
@@ -514,12 +424,6 @@ function useConnectHaptic(connected: boolean): void {
   }, [connected, hasFired]);
 }
 
-/**
- * Classic outgoing dial-tone (ringback) generated with the Web Audio API:
- * two superposed sine waves at 440 Hz and 480 Hz (the North-American
- * "precise" ringback pair), repeating in a 2 s on / 4 s off cadence until
- * the active flag flips false.
- */
 function useOutgoingRingback(active: boolean): void {
   useEffect(() => {
     if (!active) return undefined;
