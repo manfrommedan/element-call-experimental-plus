@@ -379,17 +379,7 @@ export interface CallViewModel {
    */
   connected$: Behavior<boolean>;
 
-  /**
-   * `true` while the call should be presented as a phone-style 1:1 voice
-   * call: the embedding host has set the `phoneVoiceLayout` URL flag and the
-   * local user hasn't enabled their camera. Layouts and components consume
-   * this single signal instead of re-deriving the same condition from URL
-   * params + mute state on their own.
-   *
-   * Re-emits `false` the moment the local user toggles video on, so the
-   * standard Element Call presentation takes back over without leaving the
-   * call.
-   */
+  // True iff phoneVoiceLayout URL flag is set and the local camera is off.
   phoneVoiceMode$: Behavior<boolean>;
 }
 
@@ -413,10 +403,7 @@ export function createCallViewModel$(
   reactionsSubject$: Observable<Record<string, ReactionInfo>>,
   trackProcessorState$: Behavior<ProcessorState>,
 ): CallViewModel {
-  // URL params are constant for the lifetime of the call (they're set by the
-  // embedding host when the widget loads). Hoisting the read here lets every
-  // observable below reference the same snapshot rather than calling
-  // getUrlParams() repeatedly.
+  // URL params are constant for the call lifetime — read once.
   const urlParams = getUrlParams();
 
   const client = matrixRoom.client;
@@ -963,12 +950,6 @@ export function createCallViewModel$(
    * Local user media suitable for displaying in a PiP (undefined if not found
    * or if user prefers to not see themselves).
    */
-  // Derived "phone-style 1:1 voice call" mode flag. The embedding host opts
-  // in via the `phoneVoiceLayout` URL parameter; the moment the local user
-  // enables their camera we drop the mode automatically so the standard
-  // Element Call presentation takes back over. Layouts and components
-  // (incl. pip suppression below) read from this single source instead of
-  // re-deriving the same condition each time.
   const phoneVoiceMode$ = scope.behavior<boolean>(
     muteStates.video.enabled$.pipe(
       map(
@@ -988,10 +969,8 @@ export function createCallViewModel$(
             m.type === "user" && m.local,
         );
         if (!localUserMedia) return of(undefined);
-        // The local self-tile is suppressed when the user has opted out of
-        // "Always show myself". The phone-style mode pip suppression is
-        // applied centrally on layoutMedia$, so this hook is responsible
-        // only for the "Always show myself" preference.
+        // "Always show myself" preference; phone-voice suppression is at
+        // layoutMedia$.
         return localUserMedia.alwaysShow$.pipe(
           map((alwaysShow) => (alwaysShow ? localUserMedia : undefined)),
         );
@@ -1005,14 +984,8 @@ export function createCallViewModel$(
   }>(
     combineLatest([ringingMedia$, phoneVoiceMode$, userMedia$]).pipe(
       switchMap(([ringingMedia, phoneVoice, userMedia]) => {
-        // Phone-style messenger semantics: while we are still ringing the
-        // room and nobody has joined the LiveKit session yet, the screen
-        // should show the caller (us), not a random face from the room
-        // member list. Upstream Element Call puts ringingMedia into the
-        // spotlight unconditionally, which produces a different stranger's
-        // avatar depending on Map iteration order each time the layout
-        // re-evaluates. Override here so the caller always sees their own
-        // avatar until a peer actually picks up.
+        // While ringing and the caller is alone, show the caller's own
+        // avatar instead of a random room member (upstream picks by Map order).
         if (phoneVoice && ringingMedia.length > 0) {
           const local = userMedia.find(
             (m): m is WrappedUserMediaViewModel & LocalUserMediaViewModel =>
@@ -1172,12 +1145,7 @@ export function createCallViewModel$(
                 pip: local,
               });
 
-            // If there's no other user media in the call (could still happen in
-            // this branch due to the duplicate tiles option), we could possibly
-            // show ringing media instead. The phone-style mode gate that
-            // suppresses pips lives at the layoutMedia$ tail (see below), so
-            // this branch can stay focussed on layout selection and leave the
-            // suppression to the single source of truth.
+            // No other user media: fall back to ringing media as spotlight.
             if (userMedia.length === 1)
               return ringingMedia$.pipe(
                 map((ringingMedia) => {
@@ -1201,13 +1169,6 @@ export function createCallViewModel$(
     map((spotlight) => ({ type: "pip", spotlight })),
   );
 
-  /**
-   * The media to be used to produce a layout, before the phone-style pip
-   * suppression pass below. Layout selection here is concerned only with
-   * which layout type fits the current window mode and grid mode; whether a
-   * particular layout's pip slot should be filled is decided centrally at
-   * layoutMedia$ to keep the rule in one place.
-   */
   const rawLayoutMedia$: Observable<LayoutMedia> =
     windowMode$.pipe(
       switchMap((windowMode) => {
@@ -1430,11 +1391,7 @@ export function createCallViewModel$(
             // from appearing properly. They happen less often if we never hide
             // the footer.
             if (isFirefox()) return of(true);
-            // Mobile (Android / iOS) doesn't have a hover signal, so the
-            // tap-to-reveal interaction model from below is awkward — users
-            // get a landscape phone with controls hidden until they tap the
-            // tile. Keep the footer always visible on touch platforms; the
-            // tap-then-fade behaviour stays for desktop where hover works.
+            // Mobile has no hover; keep footer visible to avoid tap-to-reveal.
             if (platform !== "desktop") return of(true);
             // Show/hide the footer in response to interactions
             return merge(
