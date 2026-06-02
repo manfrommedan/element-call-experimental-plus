@@ -165,6 +165,11 @@ export interface PipLayoutSummary {
   spotlight: string[];
 }
 
+export interface PhoneVoiceLayoutSummary {
+  type: "phone-voice";
+  spotlight: string;
+}
+
 export type LayoutSummary =
   | GridLayoutSummary
   | SpotlightLandscapeLayoutSummary
