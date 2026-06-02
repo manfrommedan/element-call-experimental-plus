@@ -87,7 +87,9 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   );
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  useOutgoingRingback(ringing);
+  // Ringback only once we are actually on the SFU, so the caller never hears a
+  // dial tone during the "connecting to server" phase.
+  useOutgoingRingback(connected && ringing);
   useConnectHaptic(participantCount > 1);
   useNotifyHostOnRemoteJoined(participantCount > 1);
 
