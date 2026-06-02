@@ -66,8 +66,17 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
   const participantCount = useObservableEagerState(vm.participantCount$);
   const ringing = useObservableEagerState(vm.ringing$);
+  const connected = useObservableEagerState(vm.connected$);
+  const reconnecting = useObservableEagerState(vm.reconnecting$);
   const isWaitingForRemote = participantCount <= 1;
-  const elapsedSeconds = useElapsedSeconds(!isWaitingForRemote);
+  const elapsedSeconds = useElapsedSeconds(connected && !isWaitingForRemote);
+  // Two-phase status: not on the SFU yet vs connected-and-ringing the peer.
+  const showStatus = reconnecting || !connected || isWaitingForRemote;
+  const statusText = reconnecting
+    ? t("voice_layout.phase_reconnecting")
+    : !connected
+      ? t("voice_layout.phase_connecting")
+      : t("voice_layout.phase_ringing");
 
   const mediaDevices = useMediaDevices();
   const availableOutputs = useObservableEagerState(
@@ -171,13 +180,18 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
     <>
       <div
         className={classNames(styles.timer, {
-          [styles.timerStatus]: isWaitingForRemote,
+          [styles.timerStatus]: showStatus,
         })}
         aria-live="polite"
       >
-        {isWaitingForRemote
-          ? t("voice_layout.phase_ringing")
-          : formatTimer(elapsedSeconds)}
+        {showStatus ? (
+          <span className={styles.statusRow}>
+            <VoiceCallIcon className={styles.statusIcon} aria-hidden />
+            {statusText}
+          </span>
+        ) : (
+          formatTimer(elapsedSeconds)
+        )}
       </div>
       <div className={styles.footer}>
         <div className={styles.row}>
