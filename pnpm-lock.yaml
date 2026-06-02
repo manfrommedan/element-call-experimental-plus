@@ -14,6 +14,11 @@ overrides:
   js-yaml: ^4.1.1
   esbuild: ^0.28.0
 
+patchedDependencies:
+  matrix-js-sdk@41.5.0:
+    hash: 1c74b5491d1c03547e7008684bfd8b4fb7e81b7d3a2d5b03524aab17853178d1
+    path: patches/matrix-js-sdk@41.5.0.patch
+
 importers:
 
   .:
@@ -245,7 +250,7 @@ importers:
         version: 1.9.2
       matrix-js-sdk:
         specifier: matrix-org/matrix-js-sdk#develop
-        version: https://codeload.github.com/matrix-org/matrix-js-sdk/tar.gz/b125ef6855303575ae8f2fcc41427e746f22e8c9
+        version: https://codeload.github.com/matrix-org/matrix-js-sdk/tar.gz/b125ef6855303575ae8f2fcc41427e746f22e8c9(patch_hash=1c74b5491d1c03547e7008684bfd8b4fb7e81b7d3a2d5b03524aab17853178d1)
       matrix-widget-api:
         specifier: ^1.16.1
         version: 1.17.0
@@ -12381,7 +12386,7 @@ snapshots:
 
   matrix-events-sdk@0.0.1: {}
 
-  matrix-js-sdk@https://codeload.github.com/matrix-org/matrix-js-sdk/tar.gz/b125ef6855303575ae8f2fcc41427e746f22e8c9:
+  matrix-js-sdk@https://codeload.github.com/matrix-org/matrix-js-sdk/tar.gz/b125ef6855303575ae8f2fcc41427e746f22e8c9(patch_hash=1c74b5491d1c03547e7008684bfd8b4fb7e81b7d3a2d5b03524aab17853178d1):
     dependencies:
       '@babel/runtime': 7.29.2
       '@matrix-org/matrix-sdk-crypto-wasm': 18.2.0
