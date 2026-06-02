@@ -43,6 +43,21 @@ Please see LICENSE in the repository root for full details.
   z-index: var(--call-view-header-footer-layer);
 }
 
+/* Connecting / ringing status: handset icon + label as one centred group,
+   so the phase reads like a stock phone-app "calling" indicator. */
+.statusRow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cpd-space-2x);
+}
+
+.statusIcon {
+  inline-size: 20px;
+  block-size: 20px;
+  flex-shrink: 0;
+}
+
 /* Applied to the same .timer slot while the call is still ringing (no peer
    joined yet). The text "Соединение…" / "Ringing…" lives in this class with
    a slow opacity pulse so the screen feels alive while the user waits for
