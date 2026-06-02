@@ -490,6 +490,11 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     noiseSuppression: parser.getFlagParam("noiseSuppression", true),
     echoCancellation: parser.getFlagParam("echoCancellation", true),
     phoneVoiceLayout: parser.getFlag("phoneVoiceLayout"),
+    // Lets the host start a video call with the camera initially off (audio
+    // intent) without forcing the phone-voice layout, so the remote video is
+    // still shown and the user can turn their camera on - answering a video
+    // call "without camera", Telegram-style.
+    callIntent: parser.getEnumParam("callIntent", ["audio", "video"]),
   };
 
   // Log the final configuration for debugging purposes.
