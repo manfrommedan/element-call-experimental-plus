@@ -14,7 +14,7 @@ Please see LICENSE in the repository root for full details.
   align-items: center;
   gap: 14px;
   padding: var(--cpd-space-10x) var(--cpd-space-4x)
-    calc(var(--cpd-space-6x) + env(safe-area-inset-bottom));
+    calc(var(--cpd-space-10x) + env(safe-area-inset-bottom));
   inline-size: 100%;
   background: linear-gradient(
     180deg,
@@ -83,9 +83,9 @@ Please see LICENSE in the repository root for full details.
 
 .row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: var(--cpd-space-3x);
 }
 
 /*
