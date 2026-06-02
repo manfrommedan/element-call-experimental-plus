@@ -49,6 +49,7 @@ import { type GridTileViewModel } from "../state/TileViewModel";
 import { useMergedRefs } from "../useMergedRefs";
 import { useReactionsSender } from "../reactions/useReactionsSender";
 import { useBehavior } from "../useBehavior";
+import { getUrlParams } from "../UrlParams";
 import { type LocalUserMediaViewModel } from "../state/media/LocalUserMediaViewModel";
 import { type RemoteUserMediaViewModel } from "../state/media/RemoteUserMediaViewModel";
 import { type UserMediaViewModel } from "../state/media/UserMediaViewModel";
@@ -78,6 +79,9 @@ const RingingMediaTile: FC<RingingMediaTileProps> = ({
   const { t } = useTranslation();
   const pickupState = useBehavior(vm.pickupState$);
   const videoEnabled = useBehavior(vm.videoEnabled$);
+  // In the phone-style voice layout VoiceFooter already shows the call phase, so
+  // suppress this tile's "Calling…" overlay to avoid a duplicate status label.
+  const phoneVoiceLayout = getUrlParams().phoneVoiceLayout;
 
   return (
     <MediaView
@@ -86,12 +90,14 @@ const RingingMediaTile: FC<RingingMediaTileProps> = ({
       userId={vm.userId}
       unencryptedWarning={false}
       status={
-        pickupState === "ringing"
-          ? {
-              text: t("video_tile.calling"),
-              Icon: videoEnabled ? VideoCallSolidIcon : VoiceCallSolidIcon,
-            }
-          : { text: t("video_tile.call_ended"), Icon: EndCallIcon }
+        phoneVoiceLayout
+          ? undefined
+          : pickupState === "ringing"
+            ? {
+                text: t("video_tile.calling"),
+                Icon: videoEnabled ? VideoCallSolidIcon : VoiceCallSolidIcon,
+              }
+            : { text: t("video_tile.call_ended"), Icon: EndCallIcon }
       }
       videoEnabled={videoEnabled}
       videoFit="cover"
