@@ -16,7 +16,7 @@ import { useUpdateLayout } from "./Grid";
 export const makePhoneVoiceLayout: CallLayout<PhoneVoiceLayoutModel> = ({
   minBounds$,
 }) => ({
-  scrollingOnTop: false,
+  foreground: "fixed",
 
   fixed: function PhoneVoiceLayoutFixed({ ref }): ReactNode {
     useUpdateLayout();

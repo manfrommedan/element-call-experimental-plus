@@ -357,6 +357,11 @@ export interface CallViewModel {
    */
   edgeToEdge$: Behavior<boolean>;
 
+  /**
+   * The general shape of the window.
+   */
+  windowMode$: Behavior<WindowMode>;
+
   settingsOpen$: Behavior<boolean>;
   setSettingsOpen$: Behavior<(open: boolean) => void>;
 
@@ -1286,8 +1291,13 @@ export function createCallViewModel$(
       map(([media, phoneVoice]) => {
         if (!phoneVoice) return media;
         switch (media.type) {
-          case "one-on-one":
-            return { type: "phone-voice", spotlight: media.spotlight };
+          case "one-on-one-landscape":
+          case "one-on-one-portrait":
+            return {
+              type: "phone-voice",
+              edgeToEdge: false,
+              spotlight: media.spotlight,
+            };
           case "spotlight-expanded":
             return media.pip === undefined ? media : { ...media, pip: undefined };
           default:
@@ -1436,7 +1446,6 @@ export function createCallViewModel$(
     ),
   );
 
-  const urlParams = getUrlParams();
   const showFooterUrlParams = !(
     urlParams.header === HeaderStyle.None && urlParams.showControls === false
   );
@@ -1809,6 +1818,7 @@ export function createCallViewModel$(
     settingsOpen$: settingsOpen$,
     setSettingsOpen$: setSettingsOpen$,
     edgeToEdge$,
+    windowMode$,
     earpieceMode$: earpieceMode$,
     audioOutputSwitcher$: audioOutputSwitcher$,
     reconnecting$: localMembership.reconnecting$,

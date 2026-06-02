@@ -61,7 +61,8 @@ export interface OneOnOnePortraitLayoutMedia {
 
 export interface PhoneVoiceLayoutMedia {
   type: "phone-voice";
-  spotlight: UserMediaViewModel;
+  edgeToEdge: false;
+  spotlight: UserMediaViewModel | RingingMediaViewModel;
 }
 
 export interface PipLayoutMedia {
