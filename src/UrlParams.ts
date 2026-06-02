@@ -571,6 +571,8 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     autoLeaveWhenOthersLeft: parser.getFlag("autoLeave"),
     noiseSuppression: parser.getFlagParam("noiseSuppression", true),
     echoCancellation: parser.getFlagParam("echoCancellation", true),
+    // Lets the host start a video call with the camera initially off without forcing phone voice.
+    callIntent: parser.getEnumParam("callIntent", ["audio", "video"]),
   };
 
   // Log the final configuration for debugging purposes.
