@@ -393,6 +393,9 @@ export interface CallViewModel {
 
   // True iff phoneVoiceLayout URL flag is set and the local camera is off.
   phoneVoiceMode$: Behavior<boolean>;
+
+  // True while a remote member is on the call but their media has not arrived yet.
+  waitingForRemoteMedia$: Behavior<boolean>;
 }
 
 /**
@@ -1744,6 +1747,18 @@ export function createCallViewModel$(
     null,
   );
 
+  // Hoisted to call level so VoiceFooter can show "waiting for media" as a status phase.
+  const waitingForRemoteMedia$ = scope.behavior(
+    userMedia$.pipe(
+      switchMap((media) => {
+        const flags = media.map((m) => (m.local ? of(false) : m.waitingForMedia$));
+        return flags.length === 0
+          ? of(false)
+          : combineLatest(flags).pipe(map((waiting) => waiting.some(Boolean)));
+      }),
+    ),
+  );
+
   return {
     autoLeave$: autoLeave$,
     ringing$: scope.behavior(
@@ -1825,6 +1840,7 @@ export function createCallViewModel$(
     livekitRoomItems$,
     connected$: localMembership.connected$,
     phoneVoiceMode$,
+    waitingForRemoteMedia$,
   };
 }
 
