@@ -428,6 +428,17 @@ const LoadedCallView: FC<LoadedProps> = ({
           ),
         )
         .then(async () => {
+          // Close before the awaited setAlwaysOnScreen: a slow request can otherwise
+          // dispose of the iframe before the host receives Close. Skip on error so
+          // the user can read it.
+          if (reason != "error" && !returnToLobby) {
+            try {
+              await hostBridge.close?.();
+            } catch (e) {
+              logger.error("Failed to ask the host to close Element Call", e);
+            }
+          }
+
           if (
             !isPasswordlessUser &&
             !confineToRoom &&
@@ -435,20 +446,10 @@ const LoadedCallView: FC<LoadedProps> = ({
           )
             leaveToHome?.();
 
-          // After this point the host could dispose of us at any moment!
           try {
             await hostBridge.setAlwaysOnScreen(false);
           } catch (e) {
             logger.error("Failed to set `alwaysOnScreen` to false", e);
-          }
-          // On a normal user hangup we can shut down and ask to be closed. But
-          // if an error occurs we should stay open until the user reads it.
-          if (reason != "error" && !returnToLobby) {
-            try {
-              await hostBridge.close?.();
-            } catch (e) {
-              logger.error("Failed to ask the host to close Element Call", e);
-            }
           }
         });
     },
