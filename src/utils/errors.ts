@@ -42,6 +42,8 @@ export class ElementCallError extends Error {
   public category: ErrorCategory;
   public localisedMessage?: string;
   public localisedTitle: string;
+  /** True if retrying (re-entering the call) can recover from this error; transient failures only. */
+  public recoverable = false;
 
   protected constructor(
     localisedTitle: string,
@@ -80,6 +82,7 @@ export class MatrixRTCTransportMissingError extends ElementCallError {
       }),
     );
     this.domain = domain;
+    this.recoverable = true;
   }
 }
 
@@ -94,6 +97,7 @@ export class ConnectionLostError extends ElementCallError {
       ErrorCategory.NETWORK_CONNECTIVITY,
       t("error.connection_lost_description"),
     );
+    this.recoverable = true;
   }
 }
 
@@ -169,6 +173,7 @@ export class FailToGetOpenIdToken extends ElementCallError {
       // Properly set it as a cause for a better reporting on sentry
       error,
     );
+    this.recoverable = true;
   }
 }
 
@@ -204,6 +209,7 @@ export class FailToStartLivekitConnection extends ElementCallError {
       ErrorCategory.NETWORK_CONNECTIVITY,
       e,
     );
+    this.recoverable = true;
   }
 }
 

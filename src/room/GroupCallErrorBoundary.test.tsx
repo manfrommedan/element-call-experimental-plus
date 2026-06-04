@@ -170,6 +170,54 @@ test("ConnectionLostError: Action handling should reset error state", async () =
   expect(reconnectCallbackSpy).toHaveBeenCalledWith("reconnect");
 });
 
+test("recoverable transport error: offers reconnect and resets on retry", async () => {
+  const user = userEvent.setup();
+
+  const TestComponent: FC<{ fail: boolean }> = ({ fail }): ReactNode => {
+    if (fail) {
+      throw new MatrixRTCTransportMissingError("example.com");
+    }
+    return <div>HELLO</div>;
+  };
+
+  const reconnectCallbackSpy = vi.fn();
+
+  const WrapComponent = (): ReactNode => {
+    const [failState, setFailState] = useState(true);
+    const reconnectCallback = useCallback(
+      async (action: CallErrorRecoveryAction) => {
+        reconnectCallbackSpy(action);
+        setFailState(false);
+        return Promise.resolve();
+      },
+      [setFailState],
+    );
+
+    return (
+      <BrowserRouter>
+        <GroupCallErrorBoundary
+          recoveryActionHandler={reconnectCallback}
+          widget={null}
+        >
+          <TestComponent fail={failState} />
+        </GroupCallErrorBoundary>
+      </BrowserRouter>
+    );
+  };
+
+  render(<WrapComponent />);
+
+  // Previously a dead-end; the transport error is now recoverable.
+  await screen.findByText("Call is not supported");
+  await user.click(await screen.findByRole("button", { name: "Reconnect" }));
+
+  // The retry reset the error, so the children render again.
+  await screen.findByText("HELLO");
+
+  expect(reconnectCallbackSpy).toHaveBeenCalledOnce();
+  expect(reconnectCallbackSpy).toHaveBeenCalledWith("reconnect");
+});
+
 describe("Rageshake button", () => {
   function setupTest(testError: ElementCallError): void {
     mockConfig({
