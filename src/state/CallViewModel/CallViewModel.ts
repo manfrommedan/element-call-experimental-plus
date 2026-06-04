@@ -490,6 +490,8 @@ export interface CallViewModel {
   phoneVoiceMode$: Behavior<boolean>;
   /** True when phone voice should use its mobile landscape split. */
   phoneVoiceLandscape$: Behavior<boolean>;
+  /** True while a remote member is on the call but their media has not arrived yet. */
+  waitingForRemoteMedia$: Behavior<boolean>;
 }
 
 /**
@@ -1889,6 +1891,29 @@ export function createCallViewModel$(
     null,
   );
 
+  // Hoisted to call level so VoiceFooter can show "waiting for media" as a status phase.
+  const waitingForRemoteMedia$ = scope.behavior(
+    userMedia$.pipe(
+      switchMap((media) => {
+        const flags = media.map((m) => (m.local ? of(false) : m.waitingForMedia$));
+        return flags.length === 0
+          ? of(false)
+          : combineLatest(flags).pipe(map((waiting) => waiting.some(Boolean)));
+      }),
+    ),
+  );
+
+  const waitingForRemoteMedia$ = scope.behavior(
+    userMedia$.pipe(
+      switchMap((media) => {
+        const flags = media.map((m) => (m.local ? of(false) : m.waitingForMedia$));
+        return flags.length === 0
+          ? of(false)
+          : combineLatest(flags).pipe(map((waiting) => waiting.some(Boolean)));
+      }),
+    ),
+  );
+
   return {
     autoLeave$: autoLeave$,
     ringingVm$: ringingMedia$,
@@ -1979,6 +2004,7 @@ export function createCallViewModel$(
     dismissScreenShareError: localMembership.dismissScreenShareError,
     phoneVoiceMode$,
     phoneVoiceLandscape$,
+    waitingForRemoteMedia$,
   };
 }
 

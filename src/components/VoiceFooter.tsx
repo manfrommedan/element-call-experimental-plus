@@ -68,15 +68,19 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const ringing = useObservableEagerState(vm.ringing$);
   const connected = useObservableEagerState(vm.connected$);
   const reconnecting = useObservableEagerState(vm.reconnecting$);
+  const waitingForMedia = useObservableEagerState(vm.waitingForRemoteMedia$);
   const isWaitingForRemote = participantCount <= 1;
   const elapsedSeconds = useElapsedSeconds(connected && !isWaitingForRemote);
-  // Two-phase status: not on the SFU yet vs connected-and-ringing the peer.
-  const showStatus = reconnecting || !connected || isWaitingForRemote;
+  // Phases: reconnecting -> connecting to SFU -> ringing -> waiting for peer media.
+  const showStatus =
+    reconnecting || !connected || isWaitingForRemote || waitingForMedia;
   const statusText = reconnecting
     ? t("voice_layout.phase_reconnecting")
     : !connected
       ? t("voice_layout.phase_connecting")
-      : t("voice_layout.phase_ringing");
+      : isWaitingForRemote
+        ? t("voice_layout.phase_ringing")
+        : t("video_tile.waiting_for_media");
 
   const mediaDevices = useMediaDevices();
   const availableOutputs = useObservableEagerState(

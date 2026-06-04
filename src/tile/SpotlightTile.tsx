@@ -106,8 +106,14 @@ const SpotlightRemoteUserMediaItem: FC<SpotlightRemoteUserMediaItemProps> = ({
   ...props
 }) => {
   const waitingForMedia = useBehavior(vm.waitingForMedia$);
+  // In phone-voice the VoiceFooter shows this as a status phase instead.
+  const phoneVoiceLayout = getUrlParams().phoneVoiceLayout;
   return (
-    <MediaView waitingForMedia={waitingForMedia} mirror={false} {...props} />
+    <MediaView
+      waitingForMedia={phoneVoiceLayout ? false : waitingForMedia}
+      mirror={false}
+      {...props}
+    />
   );
 };
 
