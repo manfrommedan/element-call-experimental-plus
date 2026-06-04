@@ -31,6 +31,7 @@ import {
 import { type ReactionOption } from "../reactions";
 import { ReactionIndicator } from "../reactions/ReactionIndicator";
 import { RTCConnectionStats } from "../RTCConnectionStats";
+import { getUrlParams } from "../UrlParams";
 
 interface Props extends ComponentProps<typeof animated.div> {
   className?: string;
@@ -93,6 +94,8 @@ export const MediaView: FC<Props> = ({
   const { t } = useTranslation();
   const [handRaiseTimerVisible] = useSetting(showHandRaisedTimer);
   const [showConnectionStats] = useSetting(showConnectionStatsSetting);
+  // In phone-voice the VoiceFooter shows the call status, so suppress the tile overlay.
+  const phoneVoiceLayout = getUrlParams().phoneVoiceLayout;
 
   const avatarSize = Math.round(Math.min(targetWidth, targetHeight) / 2);
 
@@ -164,7 +167,7 @@ export const MediaView: FC<Props> = ({
             />
           )}
         </div>
-        {waitingForMedia && (
+        {waitingForMedia && !phoneVoiceLayout && (
           <div className={styles.status}>
             {t("video_tile.waiting_for_media")}
             {showConnectionStats ? " " + rtcBackendIdentity : ""}
