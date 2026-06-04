@@ -343,7 +343,10 @@ const RemoteUserMediaTile: FC<RemoteUserMediaTileProps> = ({
   ...props
 }) => {
   const { t } = useTranslation();
-  const waitingForMedia = useBehavior(vm.waitingForMedia$);
+  // Phone-voice shows the call status in the VoiceFooter, not on the tile.
+  const phoneVoiceLayout = getUrlParams().phoneVoiceLayout;
+  const waitingForMedia =
+    useBehavior(vm.waitingForMedia$) && !phoneVoiceLayout;
   const playbackMuted = useBehavior(vm.playbackMuted$);
   const playbackVolume = useBehavior(vm.playbackVolume$);
   const focusUrl = useBehavior(vm.focusUrl$);

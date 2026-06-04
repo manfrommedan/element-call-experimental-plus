@@ -105,7 +105,10 @@ const SpotlightRemoteUserMediaItem: FC<SpotlightRemoteUserMediaItemProps> = ({
   vm,
   ...props
 }) => {
-  const waitingForMedia = useBehavior(vm.waitingForMedia$);
+  // Phone-voice shows the call status in the VoiceFooter, not on the tile.
+  const phoneVoiceLayout = getUrlParams().phoneVoiceLayout;
+  const waitingForMedia =
+    useBehavior(vm.waitingForMedia$) && !phoneVoiceLayout;
   return (
     <MediaView waitingForMedia={waitingForMedia} mirror={false} {...props} />
   );
