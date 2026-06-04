@@ -351,6 +351,16 @@ export const GroupCallView: FC<Props> = ({
           ),
         )
         .then(async () => {
+          // Close before the awaited setAlwaysOnScreen below: on a slow network it can hang and kill the iframe before close is sent, leaving the host stuck on a blank screen. Skipped on error so the user can read it.
+          if (widget && reason != "error" && !getUrlParams().returnToLobby) {
+            try {
+              await widget.api.transport.send(ElementWidgetActions.Close, {});
+            } catch (e) {
+              logger.error("Failed to send close action", e);
+            }
+            widget.api.transport.stop();
+          }
+
           if (
             !isPasswordlessUser &&
             !confineToRoom &&
@@ -359,7 +369,6 @@ export const GroupCallView: FC<Props> = ({
             void navigate("/");
 
           if (widget) {
-            // After this point the iframe could die at any moment!
             try {
               await widget.api.setAlwaysOnScreen(false);
             } catch (e) {
@@ -367,16 +376,6 @@ export const GroupCallView: FC<Props> = ({
                 "Failed to set call widget `alwaysOnScreen` to false",
                 e,
               );
-            }
-            // On a normal user hangup we can shut down and close the widget. But if an
-            // error occurs we should keep the widget open until the user reads it.
-            if (reason != "error" && !getUrlParams().returnToLobby) {
-              try {
-                await widget.api.transport.send(ElementWidgetActions.Close, {});
-              } catch (e) {
-                logger.error("Failed to send close action", e);
-              }
-              widget.api.transport.stop();
             }
           }
         });
