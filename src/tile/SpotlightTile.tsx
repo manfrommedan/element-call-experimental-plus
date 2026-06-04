@@ -33,6 +33,7 @@ import classNames from "classnames";
 import { type TrackReferenceOrPlaceholder } from "@livekit/components-core";
 import { Menu, MenuItem, Text } from "@vector-im/compound-web";
 
+import { useUrlParams } from "../UrlParams";
 import FullScreenMaximiseIcon from "../icons/FullScreenMaximise.svg?react";
 import FullScreenMinimiseIcon from "../icons/FullScreenMinimise.svg?react";
 import { MediaView } from "./MediaView";
@@ -105,7 +106,10 @@ const SpotlightRemoteUserMediaItem: FC<SpotlightRemoteUserMediaItemProps> = ({
   vm,
   ...props
 }) => {
-  const waitingForMedia = useBehavior(vm.waitingForMedia$);
+  // Phone-voice shows the call status in the VoiceFooter, not on the tile.
+  const { phoneVoiceLayout } = useUrlParams();
+  const waitingForMedia =
+    useBehavior(vm.waitingForMedia$) && !phoneVoiceLayout;
   return (
     <MediaView waitingForMedia={waitingForMedia} mirror={false} {...props} />
   );

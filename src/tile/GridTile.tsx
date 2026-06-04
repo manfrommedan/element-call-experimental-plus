@@ -18,6 +18,7 @@ import {
 import { type animated } from "@react-spring/web";
 import classNames from "classnames";
 import { useTranslation } from "react-i18next";
+import { useUrlParams } from "../UrlParams";
 import {
   MicOnSolidIcon,
   MicOffSolidIcon,
@@ -358,7 +359,10 @@ const RemoteUserMediaTile: FC<RemoteUserMediaTileProps> = ({
   ...props
 }) => {
   const { t } = useTranslation();
-  const waitingForMedia = useBehavior(vm.waitingForMedia$);
+  // Phone-voice shows the call status in the VoiceFooter, not on the tile.
+  const { phoneVoiceLayout } = useUrlParams();
+  const waitingForMedia =
+    useBehavior(vm.waitingForMedia$) && !phoneVoiceLayout;
   const playbackMuted = useBehavior(vm.playbackMuted$);
   const playbackVolume = useBehavior(vm.playbackVolume$);
   const focusUrl = useBehavior(vm.focusUrl$);
