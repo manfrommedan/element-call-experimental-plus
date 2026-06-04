@@ -26,7 +26,6 @@ import { logger } from "matrix-js-sdk/lib/logger";
 import { MatrixError } from "matrix-js-sdk";
 
 import {
-  ConnectionLostError,
   ElementCallError,
   ErrorCategory,
   ErrorCode,
@@ -70,7 +69,8 @@ const ErrorPage: FC<ErrorPageProps> = ({
   }
 
   const actions: { label: string; onClick: () => void }[] = [];
-  if (error instanceof ConnectionLostError) {
+  // Recoverable errors (transient transport/connection failures) offer a retry that re-enters the call and re-runs discovery.
+  if (error.recoverable) {
     actions.push({
       label: t("call_ended_view.reconnect_button"),
       onClick: () => void recoveryActionHandler("reconnect"),
