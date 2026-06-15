@@ -331,6 +331,7 @@ exports[`InCallView > rendering > renders 1`] = `
             </svg>
           </button>
           <button
+            aria-busy="false"
             aria-checked="false"
             aria-disabled="true"
             aria-labelledby="_r_i_"
@@ -355,6 +356,7 @@ exports[`InCallView > rendering > renders 1`] = `
             </svg>
           </button>
           <button
+            aria-busy="false"
             aria-checked="false"
             aria-disabled="true"
             aria-labelledby="_r_n_"
