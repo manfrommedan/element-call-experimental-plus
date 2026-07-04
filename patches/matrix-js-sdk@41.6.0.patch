@@ -7,7 +7,7 @@ index f6d01728671dade2ff07ddf3024215dd6fab5701..e0786d4afa5c3b66e3b0a4a24b7e3f7f
            },
            "sender_ts": Date.now(),
 -          "lifetime": 30000 // 30 seconds
-+          "lifetime": (typeof window !== "undefined" && window.location && window.location.hash.indexOf("phoneVoiceLayout=true") !== -1) ? 60000 : 30000 // upstream 30 s; phone-style hosts get 60 s
++          "lifetime": (function () { if (typeof window === "undefined" || !window.location) return 30000; var readFlag = function (qs) { var v = new URLSearchParams(qs).get("phoneVoiceLayout"); return v === null ? undefined : v !== "false"; }; var hash = window.location.hash || "", q = hash.indexOf("?"), flag = readFlag(q === -1 ? "" : hash.slice(q)); if (flag === undefined) flag = readFlag(window.location.search || ""); return flag === true ? 60000 : 30000; })() // 30 s upstream; phone-style hosts (Element Call "phoneVoiceLayout" flag, mirrors src/UrlParams.ts) get 60 s
          };
          if (callIntent) {
            content["m.call.intent"] = callIntent;
@@ -20,7 +20,7 @@ index 2866c8250fdb2bfe21fef63ced6b7d9b13ae9c10..3e220336999c3226242933fe33ea8997
                  },
                  "sender_ts": Date.now(),
 -                "lifetime": 30_000, // 30 seconds
-+                "lifetime": (typeof window !== "undefined" && window.location && window.location.hash.indexOf("phoneVoiceLayout=true") !== -1) ? 60_000 : 30_000, // upstream 30 s; phone-style hosts get 60 s
++                "lifetime": (function () { if (typeof window === "undefined" || !window.location) return 30_000; var readFlag = function (qs) { var v = new URLSearchParams(qs).get("phoneVoiceLayout"); return v === null ? undefined : v !== "false"; }; var hash = window.location.hash || "", q = hash.indexOf("?"), flag = readFlag(q === -1 ? "" : hash.slice(q)); if (flag === undefined) flag = readFlag(window.location.search || ""); return flag === true ? 60_000 : 30_000; })(), // 30 s upstream; phone-style hosts (Element Call "phoneVoiceLayout" flag, mirrors src/UrlParams.ts) get 60 s
              };
              if (callIntent) {
                  content["m.call.intent"] = callIntent;
