@@ -60,10 +60,11 @@ import {
 } from "../../utils/observable";
 import {
   duplicateTiles,
-  MatrixRTCMode,
   playReactionsSound,
   showReactions,
 } from "../../settings/settings";
+import { Config } from "../../config/Config";
+import { MatrixRTCMode } from "../../config/ConfigOptions";
 import { isFirefox, platform } from "../../Platform";
 import { setPipEnabled$ } from "../../controls";
 import { TileStore } from "../TileStore";
@@ -431,8 +432,15 @@ export function createCallViewModel$(
     options.encryptionSystem,
     matrixRTCSession,
   );
+  // matrix_rtc_mode in config.json overrides the user's Developer Settings choice.
+  // It is validated at config load (src/config/Config.ts) so the cast is safe.
+  const configMatrixRTCMode = Config.get().matrix_rtc_mode as
+    | MatrixRTCMode
+    | undefined;
   const matrixRTCMode$ =
-    options.matrixRTCMode$ ?? constant(MatrixRTCMode.Legacy);
+    configMatrixRTCMode !== undefined
+      ? constant(configMatrixRTCMode)
+      : (options.matrixRTCMode$ ?? constant(MatrixRTCMode.Legacy));
 
   // Each hbar seperates a block of input variables required for the CallViewModel to function.
   // The outputs of this block is written under the hbar.
@@ -773,11 +781,13 @@ export function createCallViewModel$(
             pretendToBeDisconnected$: localMembership.reconnecting$,
             displayName$: scope.behavior(
               matrixMemberMetadataStore
-                .createDisplayNameBehavior$(userId)
+                .createDisplayNameBehavior$(scope, userId)
                 .pipe(map((name) => name ?? userId)),
             ),
-            mxcAvatarUrl$:
-              matrixMemberMetadataStore.createAvatarUrlBehavior$(userId),
+            mxcAvatarUrl$: matrixMemberMetadataStore.createAvatarUrlBehavior$(
+              scope,
+              userId,
+            ),
             handRaised$: scope.behavior(
               handsRaised$.pipe(map((v) => v[mediaId]?.time ?? null)),
             ),
@@ -818,8 +828,10 @@ export function createCallViewModel$(
                 map((members) => members.get(userId)?.rawDisplayName || userId),
               ),
             ),
-            mxcAvatarUrl$:
-              matrixMemberMetadataStore.createAvatarUrlBehavior$(userId),
+            mxcAvatarUrl$: matrixMemberMetadataStore.createAvatarUrlBehavior$(
+              scope,
+              userId,
+            ),
             pickupState$,
             muteStates,
           }),
@@ -1229,6 +1241,36 @@ export function createCallViewModel$(
     })),
   );
 
+  spotlight$
+    .pipe(
+      switchMap((media) => {
+        let layout;
+        const pipMedia = media[0];
+        if (pipMedia === undefined) return of(undefined);
+        switch (pipMedia.type) {
+          case "user":
+            layout = pipMedia.videoOrientation$;
+            break;
+          case "ringing":
+            layout = of("landscape" as const);
+            break;
+          case "screen share":
+            layout = of("landscape" as const);
+            break;
+        }
+        return layout;
+      }),
+      scope.bind(),
+    )
+    .subscribe((orientation) => {
+      if (orientation === undefined) return;
+      logger.info("controls api pip orientation updated:", orientation);
+      window.controls.onPipMediaOrientationUpdate?.(orientation);
+    });
+
+  /**
+   * The media to be used to produce a layout.
+   */
   const rawLayoutMedia$: Observable<LayoutMedia> =
     windowMode$.pipe(
       switchMap((windowMode) => {

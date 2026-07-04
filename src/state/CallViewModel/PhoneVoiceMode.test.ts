@@ -49,7 +49,7 @@ import {
 } from "../../utils/test-fixtures";
 import { constant } from "../Behavior";
 import { withCallViewModel as withCallViewModelInMode } from "./CallViewModelTestUtils";
-import { MatrixRTCMode } from "../../settings/settings";
+import { MatrixRTCMode } from "../../config/ConfigOptions";
 
 describe.each([
   [MatrixRTCMode.Legacy],
