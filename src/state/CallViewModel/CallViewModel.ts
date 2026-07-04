@@ -235,9 +235,11 @@ export interface CallViewModel {
    */
   ringingVm$: Behavior<RingingMediaViewModel | null>;
   /**
-   * Which visual element the ringing status should be shown in.
+   * Which visual element the ringing status should be shown in, or "none" to
+   * suppress it (e.g. in the phone-voice layout, where the voice footer already
+   * conveys the ringing state).
    */
-  ringingStatusLocation: "app_bar" | "tile";
+  ringingStatusLocation: "app_bar" | "tile" | "none";
   /** Observable that emits when the user should leave the call (hangup pressed, widget action, error).
    * THIS DOES NOT LEAVE THE CALL YET. The only way to leave the call (send the hangup event) is
    *  - by ending the scope
@@ -393,8 +395,8 @@ export interface CallViewModel {
 
   // True iff phoneVoiceLayout URL flag is set and the local camera is off.
   phoneVoiceMode$: Behavior<boolean>;
-  // Current window mode (normal / narrow / flat / pip).
-  windowMode$: Behavior<WindowMode>;
+  // True iff the phone-voice layout should use its landscape split.
+  phoneVoiceLandscape$: Behavior<boolean>;
 }
 
 /**
@@ -1074,6 +1076,19 @@ export function createCallViewModel$(
     ),
   );
 
+  /**
+   * Whether the phone-voice layout should use its landscape split (spotlight
+   * beside the voice footer), i.e. a mobile voice call in the flat window mode.
+   */
+  const phoneVoiceLandscape$ = scope.behavior<boolean>(
+    combineLatest([phoneVoiceMode$, windowMode$]).pipe(
+      map(
+        ([phoneVoice, windowMode]) =>
+          phoneVoice && windowMode === "flat" && platform !== "desktop",
+      ),
+    ),
+  );
+
   const spotlightExpandedToggle$ = new Subject<void>();
   const spotlightExpanded$ = createToggle$(
     scope,
@@ -1308,20 +1323,16 @@ export function createCallViewModel$(
       map(([media, phoneVoice]) => {
         if (!phoneVoice) return media;
         switch (media.type) {
+          // Voice calls always use the phone-voice layout, including while
+          // ringing: the grid tile accepts RingingMediaViewModel, so no
+          // special-casing of the ringing spotlight is needed.
           case "one-on-one-landscape":
+          case "one-on-one-portrait":
             return {
               type: "phone-voice",
               edgeToEdge: media.edgeToEdge,
               spotlight: media.spotlight,
             };
-          case "one-on-one-portrait":
-            return media.spotlight.type === "ringing"
-              ? media
-              : {
-                  type: "phone-voice",
-                  edgeToEdge: media.edgeToEdge,
-                  spotlight: media.spotlight,
-                };
           case "spotlight-expanded":
             return media.pip === undefined ? media : { ...media, pip: undefined };
           default:
@@ -1778,8 +1789,11 @@ export function createCallViewModel$(
   return {
     autoLeave$: autoLeave$,
     ringingVm$: ringingMedia$,
-    ringingStatusLocation:
-      urlParams.header === HeaderStyle.AppBar ? "app_bar" : "tile",
+    ringingStatusLocation: urlParams.phoneVoiceLayout
+      ? "none"
+      : urlParams.header === HeaderStyle.AppBar
+        ? "app_bar"
+        : "tile",
     leave$: leave$,
     hangup: (): void => userHangup$.next(),
     join: localMembership.requestJoinAndPublish,
@@ -1855,7 +1869,7 @@ export function createCallViewModel$(
     livekitRoomItems$,
     connected$: localMembership.connected$,
     phoneVoiceMode$,
-    windowMode$,
+    phoneVoiceLandscape$,
   };
 }
 

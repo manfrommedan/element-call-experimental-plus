@@ -254,7 +254,7 @@ const AudioOutputPicker: FC<AudioOutputPickerProps> = ({
       onDismiss={onDismiss}
       hideHeader
     >
-      <ul className={styles.outputList} role="listbox">
+      <div className={styles.outputList} role="listbox">
         {outputs.map((output) => (
           <OutputRow
             key={output.id}
@@ -263,7 +263,7 @@ const AudioOutputPicker: FC<AudioOutputPickerProps> = ({
             onSelect={onSelect}
           />
         ))}
-      </ul>
+      </div>
     </Modal>
   );
 };
@@ -275,26 +275,24 @@ const OutputRow: FC<{
 }> = ({ output, selected, onSelect }) => {
   const handle = useCallback(() => onSelect(output.id), [onSelect, output.id]);
   return (
-    <li>
-      <button
-        type="button"
-        className={styles.outputRow}
-        data-active={selected ? "true" : "false"}
-        onClick={handle}
-        role="option"
-        aria-selected={selected}
-      >
-        <span className={styles.outputIcon} aria-hidden="true">
-          {iconForOutputKind(output.kind)}
+    <button
+      type="button"
+      className={styles.outputRow}
+      data-active={selected ? "true" : "false"}
+      onClick={handle}
+      role="option"
+      aria-selected={selected}
+    >
+      <span className={styles.outputIcon} aria-hidden="true">
+        {iconForOutputKind(output.kind)}
+      </span>
+      <span className={styles.outputLabel}>{output.label}</span>
+      {selected && (
+        <span className={styles.outputCheck} aria-hidden="true">
+          <CheckIcon />
         </span>
-        <span className={styles.outputLabel}>{output.label}</span>
-        {selected && (
-          <span className={styles.outputCheck} aria-hidden="true">
-            <CheckIcon />
-          </span>
-        )}
-      </button>
-    </li>
+      )}
+    </button>
   );
 };
 

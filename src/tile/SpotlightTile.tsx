@@ -53,7 +53,6 @@ import { type MediaViewModel } from "../state/media/MediaViewModel";
 import { Slider } from "../Slider";
 import { platform } from "../Platform";
 import { type RingingMediaViewModel } from "../state/media/RingingMediaViewModel";
-import { getUrlParams } from "../UrlParams";
 import { RingingStatus } from "./RingingStatus";
 
 interface SpotlightItemBaseProps {
@@ -211,23 +210,16 @@ const SpotlightRingingMediaItem: FC<SpotlightRingingMediaItemProps> = ({
   showStatus,
   ...props
 }) => {
-  // In the phone-style voice layout the spotlight tile fills the screen and
-  // VoiceFooter already conveys the ringing state (synthesised dial tone +
-  // controls). Suppress the upstream status overlay so the avatar stays
-  // clean — premium phone-call presentation.
-  const phoneVoiceLayout = getUrlParams().phoneVoiceLayout;
   return (
     <MediaView
       video={undefined}
       unencryptedWarning={false}
       status={
-        phoneVoiceLayout
-          ? undefined
-          : showStatus && (
-              <Text as="span" size="md" weight="medium">
-                <RingingStatus vm={vm} />
-              </Text>
-            )
+        showStatus && (
+          <Text as="span" size="md" weight="medium">
+            <RingingStatus vm={vm} />
+          </Text>
+        )
       }
       avatarStyle="translucent"
       videoEnabled={false}

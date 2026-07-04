@@ -26,7 +26,6 @@ import { logger as rootLogger } from "matrix-js-sdk/lib/logger";
 import { useTranslation } from "react-i18next";
 
 import { Header, LeftNav, RightNav, RoomHeaderInfo } from "../Header";
-import { platform } from "../Platform";
 import { HeaderStyle, useUrlParams } from "../UrlParams";
 import { useCallViewKeyboardShortcuts } from "../useCallViewKeyboardShortcuts";
 import { widget } from "../widget";
@@ -258,7 +257,7 @@ export const InCallView: FC<InCallViewProps> = ({
 
   const phoneVoiceMode = useBehavior(vm.phoneVoiceMode$);
   const ringingVm = useBehavior(vm.ringingVm$);
-  const windowMode = useBehavior(vm.windowMode$);
+  const phoneVoiceLandscape = useBehavior(vm.phoneVoiceLandscape$);
   const audioParticipants = useBehavior(vm.livekitRoomItems$);
   const participantCount = useBehavior(vm.participantCount$);
   const reconnecting = useBehavior(vm.reconnecting$);
@@ -604,11 +603,7 @@ export const InCallView: FC<InCallViewProps> = ({
     <div
       className={styles.inRoom}
       // CSS-driven landscape split: spotlight | VoiceFooter on mobile flat.
-      data-phone-voice-landscape={
-        phoneVoiceMode && windowMode === "flat" && platform !== "desktop"
-          ? "true"
-          : undefined
-      }
+      data-phone-voice-landscape={phoneVoiceLandscape ? "true" : undefined}
       ref={containerRef}
       onPointerUp={onViewPointerUp}
       onPointerMove={onPointerMove}

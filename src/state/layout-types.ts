@@ -55,7 +55,7 @@ export interface OneOnOneLandscapeLayoutMedia {
 export interface PhoneVoiceLayoutMedia {
   type: "phone-voice";
   edgeToEdge: boolean;
-  spotlight: UserMediaViewModel;
+  spotlight: UserMediaViewModel | RingingMediaViewModel;
 }
 
 export interface OneOnOnePortraitLayoutMedia {
