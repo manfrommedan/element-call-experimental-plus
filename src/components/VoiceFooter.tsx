@@ -65,7 +65,8 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const videoEnabled = useObservableEagerState(muteStates.video.enabled$);
   const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
   const participantCount = useObservableEagerState(vm.participantCount$);
-  const ringing = useObservableEagerState(vm.ringing$);
+  const ringingVm = useObservableEagerState(vm.ringingVm$);
+  const ringing = ringingVm !== null;
   const isWaitingForRemote = participantCount <= 1;
   const elapsedSeconds = useElapsedSeconds(!isWaitingForRemote);
 

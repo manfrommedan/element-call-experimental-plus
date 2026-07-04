@@ -54,11 +54,12 @@ Please see LICENSE in the repository root for full details.
   left: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
+  opacity: 100%;
+  transition: opacity 0.2s;
 }
 
-.translucent {
+.avatar[data-style="translucent"] {
   opacity: 50%;
-  mix-blend-mode: multiply;
 }
 
 /* CSS makes us put a condition here, even though all we want to do is
@@ -85,6 +86,7 @@ unconditionally select the container so we can use cqmin units */
     calc(var(--media-view-border-radius) - var(--cpd-space-3x))
   );
   padding: var(--fg-inset);
+  transition: padding 0.3s;
   display: grid;
   grid-template-columns: 1fr auto;
   grid-template-rows: 1fr auto;
@@ -92,6 +94,12 @@ unconditionally select the container so we can use cqmin units */
   gap: var(--cpd-space-1x);
   place-items: start;
   contain: strict;
+}
+
+@media (prefers-reduced-motion) {
+  .fg {
+    transition: none;
+  }
 }
 
 .nameTag {
@@ -114,18 +122,18 @@ unconditionally select the container so we can use cqmin units */
 .status {
   grid-area: status;
   color: var(--cpd-color-text-primary);
-  display: flex;
-  flex-wrap: none;
-  align-items: center;
-  gap: 3px;
   user-select: none;
   overflow: hidden;
   margin-block-start: calc(var(--cpd-space-3x) - var(--fg-inset));
   margin-inline-start: calc(var(--cpd-space-4x) - var(--fg-inset));
-}
 
-.status svg {
-  color: var(--cpd-color-icon-tertiary);
+  svg {
+    color: var(--cpd-color-icon-tertiary);
+    vertical-align: text-bottom;
+    margin-inline-end: 3px;
+    block-size: 1.2em;
+    inline-size: 1.2em;
+  }
 }
 
 .reactions {

@@ -17,6 +17,7 @@ export const makePhoneVoiceLayout: CallLayout<PhoneVoiceLayoutModel> = ({
   minBounds$,
 }) => ({
   scrollingOnTop: false,
+  foreground: "scrolling",
 
   fixed: function PhoneVoiceLayoutFixed({ ref }): ReactNode {
     useUpdateLayout();

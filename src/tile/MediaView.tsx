@@ -7,13 +7,7 @@ Please see LICENSE in the repository root for full details.
 
 import { type TrackReferenceOrPlaceholder } from "@livekit/components-core";
 import { animated } from "@react-spring/web";
-import {
-  type FC,
-  type ComponentProps,
-  type ReactNode,
-  type ComponentType,
-  type SVGAttributes,
-} from "react";
+import { type FC, type ComponentProps, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import classNames from "classnames";
 import { VideoTrack } from "@livekit/components-react";
@@ -43,10 +37,12 @@ interface Props extends ComponentProps<typeof animated.div> {
   userId: string;
   videoEnabled: boolean;
   unencryptedWarning: boolean;
-  status?: { text: string; Icon: ComponentType<SVGAttributes<SVGElement>> };
+  status?: ReactNode;
+  showNameTags: boolean;
   nameTagLeadingIcon?: ReactNode;
   displayName: string;
   mxcAvatarUrl: string | undefined;
+  avatarStyle?: "solid" | "translucent";
   focusable: boolean;
   primaryButton?: ReactNode;
   raisedHandTime?: Date;
@@ -72,9 +68,11 @@ export const MediaView: FC<Props> = ({
   userId,
   videoEnabled,
   unencryptedWarning,
+  showNameTags,
   nameTagLeadingIcon,
   displayName,
   mxcAvatarUrl,
+  avatarStyle = "solid",
   focusable,
   primaryButton,
   status,
@@ -94,6 +92,23 @@ export const MediaView: FC<Props> = ({
 
   const avatarSize = Math.round(Math.min(targetWidth, targetHeight) / 2);
 
+  const warnings = unencryptedWarning && (
+    <Tooltip
+      label={t("common.unencrypted")}
+      placement="bottom"
+      isTriggerInteractive={false}
+      nonInteractiveTriggerTabIndex={focusable ? undefined : -1}
+    >
+      <ErrorSolidIcon
+        width={20}
+        height={20}
+        className={styles.errorIcon}
+        role="img"
+        aria-label={t("common.unencrypted")}
+      />
+    </Tooltip>
+  );
+
   return (
     <animated.div
       className={classNames(styles.media, className, {
@@ -111,11 +126,8 @@ export const MediaView: FC<Props> = ({
           name={displayName}
           size={avatarSize}
           src={mxcAvatarUrl}
-          className={classNames(styles.avatar, {
-            // When the avatar is overlaid with a status, make it translucent
-            // for readability
-            [styles.translucent]: status,
-          })}
+          data-style={avatarStyle}
+          className={styles.avatar}
           style={{ display: video && videoEnabled ? "none" : "initial" }}
         />
         {video?.publication !== undefined && (
@@ -161,14 +173,7 @@ export const MediaView: FC<Props> = ({
             />
           </>
         )}
-        {status && (
-          <div className={styles.status}>
-            <status.Icon width={16} height={16} aria-hidden />
-            <Text as="span" size="sm" weight="medium">
-              {status.text}
-            </Text>
-          </div>
-        )}
+        {status && <div className={styles.status}>{status}</div>}
         {/* TODO: Bring this back once encryption status is less broken */}
         {/*encryptionStatus !== EncryptionStatus.Okay && (
             <div className={styles.status}>
@@ -184,34 +189,23 @@ export const MediaView: FC<Props> = ({
               </Text>
             </div>
           )*/}
-        <div className={styles.nameTag}>
-          {nameTagLeadingIcon}
-          <Text
-            as="span"
-            size="sm"
-            weight="medium"
-            className={styles.name}
-            data-testid="name_tag"
-          >
-            {displayName}
-          </Text>
-          {unencryptedWarning && (
-            <Tooltip
-              label={t("common.unencrypted")}
-              placement="bottom"
-              isTriggerInteractive={false}
-              nonInteractiveTriggerTabIndex={focusable ? undefined : -1}
+        {showNameTags && targetWidth >= 100 ? (
+          <div className={styles.nameTag}>
+            {nameTagLeadingIcon}
+            <Text
+              as="span"
+              size="sm"
+              weight="medium"
+              className={styles.name}
+              data-testid="name_tag"
             >
-              <ErrorSolidIcon
-                width={20}
-                height={20}
-                className={styles.errorIcon}
-                role="img"
-                aria-label={t("common.unencrypted")}
-              />
-            </Tooltip>
-          )}
-        </div>
+              {displayName}
+            </Text>
+            {warnings}
+          </div>
+        ) : (
+          warnings
+        )}
         {primaryButton}
       </div>
     </animated.div>

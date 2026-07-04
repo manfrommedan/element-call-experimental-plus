@@ -13,8 +13,7 @@ import {
   type TrackReference,
   type TrackReferencePlaceholder,
 } from "@livekit/components-core";
-import { LocalTrackPublication, Track } from "livekit-client";
-import { TrackInfo } from "@livekit/protocol";
+import { type LocalTrackPublication, Track } from "livekit-client";
 import { type ComponentProps } from "react";
 
 import { MediaView } from "./MediaView";
@@ -28,10 +27,7 @@ describe("MediaView", () => {
   };
   const trackReference: TrackReference = {
     ...trackReferencePlaceholder,
-    publication: new LocalTrackPublication(
-      Track.Kind.Video,
-      new TrackInfo({ sid: "id", name: "name" }),
-    ),
+    publication: {} as Partial<LocalTrackPublication> as LocalTrackPublication,
   };
 
   const baseProps: ComponentProps<typeof MediaView> = {
@@ -42,6 +38,7 @@ describe("MediaView", () => {
     targetHeight: 200,
     mirror: false,
     unencryptedWarning: false,
+    showNameTags: true,
     video: trackReference,
     userId: "@alice:example.com",
     mxcAvatarUrl: undefined,
@@ -105,6 +102,16 @@ describe("MediaView", () => {
       );
       expect(await axe(container)).toHaveNoViolations();
       expect(screen.getByRole("img", { name: "Not encrypted" })).toBeTruthy();
+    });
+
+    test("is shown and accessible even with name tag hidden", async () => {
+      const { container } = render(
+        <TooltipProvider>
+          <MediaView {...baseProps} unencryptedWarning showNameTags={false} />
+        </TooltipProvider>,
+      );
+      expect(await axe(container)).toHaveNoViolations();
+      screen.getByRole("img", { name: "Not encrypted" });
     });
 
     test("is not shown", () => {

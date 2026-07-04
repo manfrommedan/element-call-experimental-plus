@@ -24,9 +24,6 @@ import {
   VolumeOnIcon,
   VolumeOffSolidIcon,
   VolumeOnSolidIcon,
-  VideoCallSolidIcon,
-  VoiceCallSolidIcon,
-  EndCallIcon,
 } from "@vector-im/compound-design-tokens/assets/web/icons";
 import { animated } from "@react-spring/web";
 import { type Observable, map } from "rxjs";
@@ -34,7 +31,7 @@ import { useObservableRef } from "observable-hooks";
 import { useTranslation } from "react-i18next";
 import classNames from "classnames";
 import { type TrackReferenceOrPlaceholder } from "@livekit/components-core";
-import { Menu, MenuItem } from "@vector-im/compound-web";
+import { Menu, MenuItem, Text } from "@vector-im/compound-web";
 
 import FullScreenMaximiseIcon from "../icons/FullScreenMaximise.svg?react";
 import FullScreenMinimiseIcon from "../icons/FullScreenMinimise.svg?react";
@@ -57,6 +54,7 @@ import { Slider } from "../Slider";
 import { platform } from "../Platform";
 import { type RingingMediaViewModel } from "../state/media/RingingMediaViewModel";
 import { getUrlParams } from "../UrlParams";
+import { RingingStatus } from "./RingingStatus";
 
 interface SpotlightItemBaseProps {
   ref?: Ref<HTMLDivElement>;
@@ -67,6 +65,7 @@ interface SpotlightItemBaseProps {
   userId: string;
   displayName: string;
   mxcAvatarUrl: string | undefined;
+  showNameTags: boolean;
   focusable: boolean;
   "aria-hidden"?: boolean;
 }
@@ -204,34 +203,33 @@ const SpotlightMemberMediaItem: FC<SpotlightMemberMediaItemProps> = ({
 
 interface SpotlightRingingMediaItemProps extends SpotlightItemBaseProps {
   vm: RingingMediaViewModel;
+  showStatus: boolean;
 }
 
 const SpotlightRingingMediaItem: FC<SpotlightRingingMediaItemProps> = ({
   vm,
+  showStatus,
   ...props
 }) => {
-  const { t } = useTranslation();
-  const pickupState = useBehavior(vm.pickupState$);
-  const videoEnabled = useBehavior(vm.videoEnabled$);
   // In the phone-style voice layout the spotlight tile fills the screen and
   // VoiceFooter already conveys the ringing state (synthesised dial tone +
   // controls). Suppress the upstream status overlay so the avatar stays
   // clean — premium phone-call presentation.
   const phoneVoiceLayout = getUrlParams().phoneVoiceLayout;
-  const status = phoneVoiceLayout
-    ? undefined
-    : pickupState === "ringing"
-      ? {
-          text: t("video_tile.calling"),
-          Icon: videoEnabled ? VideoCallSolidIcon : VoiceCallSolidIcon,
-        }
-      : { text: t("video_tile.call_ended"), Icon: EndCallIcon };
-
   return (
     <MediaView
       video={undefined}
       unencryptedWarning={false}
-      status={status}
+      status={
+        phoneVoiceLayout
+          ? undefined
+          : showStatus && (
+              <Text as="span" size="md" weight="medium">
+                <RingingStatus vm={vm} />
+              </Text>
+            )
+      }
+      avatarStyle="translucent"
       videoEnabled={false}
       videoFit="cover"
       mirror={false}
@@ -251,6 +249,8 @@ interface SpotlightItemProps {
    * The height this tile will have once its animations have settled.
    */
   targetHeight: number;
+  showNameTags: boolean;
+  showRingingStatus: boolean;
   focusable: boolean;
   intersectionObserver$: Observable<IntersectionObserver>;
   /**
@@ -265,6 +265,8 @@ const SpotlightItem: FC<SpotlightItemProps> = ({
   vm,
   targetWidth,
   targetHeight,
+  showNameTags,
+  showRingingStatus,
   focusable,
   intersectionObserver$,
   snap,
@@ -300,12 +302,17 @@ const SpotlightItem: FC<SpotlightItemProps> = ({
     userId: vm.userId,
     displayName,
     mxcAvatarUrl,
+    showNameTags,
     focusable,
     "aria-hidden": ariaHidden,
   };
 
   return vm.type === "ringing" ? (
-    <SpotlightRingingMediaItem vm={vm} {...baseProps} />
+    <SpotlightRingingMediaItem
+      vm={vm}
+      showStatus={showRingingStatus}
+      {...baseProps}
+    />
   ) : (
     <SpotlightMemberMediaItem vm={vm} {...baseProps} />
   );
@@ -388,6 +395,8 @@ interface Props {
   targetWidth: number;
   targetHeight: number;
   showIndicators: boolean;
+  showNameTags: boolean;
+  showRingingStatus: boolean;
   focusable: boolean;
   className?: string;
   style?: ComponentProps<typeof animated.div>["style"];
@@ -401,6 +410,8 @@ export const SpotlightTile: FC<Props> = ({
   targetWidth,
   targetHeight,
   showIndicators,
+  showNameTags,
+  showRingingStatus,
   focusable = true,
   className,
   style,
@@ -511,6 +522,8 @@ export const SpotlightTile: FC<Props> = ({
             vm={vm}
             targetWidth={targetWidth}
             targetHeight={targetHeight}
+            showRingingStatus={showRingingStatus}
+            showNameTags={showNameTags}
             focusable={focusable}
             intersectionObserver$={intersectionObserver$}
             // This is how we get the container to scroll to the right media
