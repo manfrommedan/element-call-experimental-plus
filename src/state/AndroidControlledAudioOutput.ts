@@ -23,7 +23,11 @@ import {
 } from "./MediaDevices.ts";
 import type { ObservableScope } from "./ObservableScope.ts";
 import type { RTCCallIntent } from "matrix-js-sdk/lib/matrixrtc";
-import { type Controls, type OutputDevice } from "../controls.ts";
+import {
+  type Controls,
+  type OutputDevice,
+  outputDevice$ as controlledRouteChange$,
+} from "../controls.ts";
 import { type Behavior } from "./Behavior.ts";
 
 type ControllerState = {
@@ -47,14 +51,18 @@ type ControllerState = {
  */
 type ControllerAction =
   | { type: "selectDevice"; deviceId: string | undefined }
-  | { type: "deviceUpdated"; devices: OutputDevice[] };
+  | { type: "deviceUpdated"; devices: OutputDevice[] }
+  | { type: "routeChanged"; deviceId: string };
 /**
  * The implementation of the audio output media device for Android when using the controlled audio output mode.
  *
  * In this mode, the hosting application (e.g. Element Mobile) is responsible for providing the list of available audio output devices.
  * There are some android specific logic compared to others:
- *  - AndroidControlledAudioOutput is the only one responsible for selecting the best output device.
- *  - On android, we don't listen to the selected device from native code (control.setAudioDevice).
+ *  - AndroidControlledAudioOutput decides which output device to ask for.
+ *  - The hosting application reports back the route it actually ended up on (control.setAudioDevice),
+ *    and that report wins over what was asked for. The platform can refuse a selection, and a picker
+ *    that keeps showing the request rather than the truth is how "I tapped the earpiece and the call
+ *    stayed on the loudspeaker" goes unnoticed.
  *  - If a new device is added or removed, this controller will determine the new selected device based
  *    on the available devices (that is ordered by preference order) and the user's selection (if any).
  *
@@ -83,8 +91,8 @@ export class AndroidControlledAudioOutput implements MediaDevice<
   /**
    * Effective selected device, always valid against available devices.
    *
-   * On android, we don't listen to the selected device from native code (control.setAudioDevice).
-   * Instead, we determine the selected device ourselves based on the available devices and the user's selection (if any).
+   * Driven by the available devices and the user's selection, then corrected by whatever route the
+   * hosting application reports it actually managed to apply.
    */
   public readonly selected$: Behavior<SelectedAudioOutputDevice | undefined>;
 
@@ -168,6 +176,12 @@ export class AndroidControlledAudioOutput implements MediaDevice<
             ({ type: "selectDevice", deviceId }) satisfies ControllerAction,
         ),
       ),
+      controlledRouteChange$.pipe(
+        map(
+          (deviceId) =>
+            ({ type: "routeChanged", deviceId }) satisfies ControllerAction,
+        ),
+      ),
     );
 
     const initialAction: ControllerAction = {
@@ -206,6 +220,28 @@ export class AndroidControlledAudioOutput implements MediaDevice<
                 ...state,
                 preferredDeviceId: action.deviceId,
                 selectedDeviceId: chosenDevice,
+              };
+            }
+            case "routeChanged": {
+              // The host is the only one that can actually move the audio, so where it says the
+              // route landed is the truth. Ignore a device we don't know about: we have no label
+              // for it and the next device list will settle things anyway.
+              if (!state.devices.some((d) => d.id === action.deviceId)) {
+                this.logger.debug(
+                  `Ignoring reported route ${action.deviceId}, not in the available devices`,
+                );
+                return state;
+              }
+              if (state.selectedDeviceId === action.deviceId) return state;
+              this.logger.info(
+                `Host reports the route is ${action.deviceId}, was ${state.selectedDeviceId}`,
+              );
+              // The preference follows too. Keeping a preference the platform just refused would
+              // make every later device update flip the picker back to a device we never got.
+              return {
+                ...state,
+                preferredDeviceId: action.deviceId,
+                selectedDeviceId: action.deviceId,
               };
             }
           }

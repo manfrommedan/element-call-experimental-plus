@@ -10,7 +10,7 @@ import { firstValueFrom, of, Subject, take, toArray } from "rxjs";
 import { type RTCCallIntent } from "matrix-js-sdk/lib/matrixrtc";
 
 import { AndroidControlledAudioOutput } from "./AndroidControlledAudioOutput.ts";
-import type { Controls, OutputDevice } from "../controls";
+import { outputDevice$, type Controls, type OutputDevice } from "../controls";
 import { ObservableScope } from "./ObservableScope";
 import { withTestScheduler } from "../utils/test";
 
@@ -559,5 +559,66 @@ describe("Scope management", () => {
     expect(mockControls.onAudioDeviceSelect).not.toHaveBeenCalledTimes(2);
     // Should have been called only once with the initial BT_HEADSET_DEVICE.id
     expect(mockControls.onAudioDeviceSelect).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Route reported by the host", () => {
+  it("Corrects the selection when the platform routed elsewhere", async () => {
+    const controlledAudioOutput = new AndroidControlledAudioOutput(
+      of(BASE_DEVICE_LIST),
+      testScope,
+      "audio",
+      mockControls,
+    );
+
+    // Audio calls ask for the earpiece.
+    expect(await firstValueFrom(controlledAudioOutput.selected$)).toEqual({
+      id: EARPIECE_DEVICE.id,
+      virtualEarpiece: false,
+    });
+
+    // The platform refused and left the call on the loudspeaker.
+    outputDevice$.next(SPEAKER_DEVICE.id);
+
+    expect(await firstValueFrom(controlledAudioOutput.selected$)).toEqual({
+      id: SPEAKER_DEVICE.id,
+      virtualEarpiece: false,
+    });
+  });
+
+  it("Keeps the corrected route when the device list is refreshed", async () => {
+    const availableSource$ = new Subject<OutputDevice[]>();
+    const controlledAudioOutput = new AndroidControlledAudioOutput(
+      availableSource$,
+      testScope,
+      "audio",
+      mockControls,
+    );
+
+    availableSource$.next(BASE_DEVICE_LIST);
+    outputDevice$.next(SPEAKER_DEVICE.id);
+    // A refresh must not resurrect the earpiece preference we never actually got.
+    availableSource$.next(BASE_DEVICE_LIST);
+
+    expect(await firstValueFrom(controlledAudioOutput.selected$)).toEqual({
+      id: SPEAKER_DEVICE.id,
+      virtualEarpiece: false,
+    });
+  });
+
+  it("Ignores a route it has no device for", async () => {
+    const controlledAudioOutput = new AndroidControlledAudioOutput(
+      of(BASE_DEVICE_LIST),
+      testScope,
+      "audio",
+      mockControls,
+    );
+
+    outputDevice$.next("device-that-does-not-exist");
+
+    expect(await firstValueFrom(controlledAudioOutput.selected$)).toEqual({
+      id: EARPIECE_DEVICE.id,
+      virtualEarpiece: false,
+    });
   });
 });
