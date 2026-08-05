@@ -13,29 +13,33 @@ import fullConfig from "./vite.config";
 const base = "./";
 
 // Extends phone-voice calls to 60 s ring timeout when phoneVoiceLayout=true.
-// matrix-js-sdk hardcodes "lifetime": 30000 with no config hook; we patch it
-// at bundle time so it survives any pnpm lock update without a patch file.
-// The closeBundle guard ensures CI fails loudly if the literal ever disappears.
+// matrix-js-sdk hardcodes the ring notification lifetime at 30 s with no config
+// hook, so we rewrite the literal at bundle time instead of carrying a patch
+// file, which pnpm refuses to pin against a git dependency.
+//
+// The key may or may not be quoted and the number may be minified to 3e4, so
+// the pattern covers both. closeBundle fails the build unless exactly one site
+// was rewritten: zero means the sdk moved the literal, more than one means it
+// is no longer unambiguous and the anchor needs revisiting.
 function phoneVoiceLifetimePlugin(): Plugin {
-  let found = false;
-  // Matches: "lifetime": 30000   (with optional trailing // comment)
-  const PATTERN = /"lifetime"\s*:\s*30000(?:\s*\/\/[^\n]*)*/g;
+  let hits = 0;
+  const PATTERN = /(["']?lifetime["']?\s*:\s*)(?:30000|3e4)\b/g;
   const REPLACEMENT =
-    '"lifetime": (typeof window!=="undefined"&&window.location&&' +
-    'window.location.hash.indexOf("phoneVoiceLayout=true")!==-1)?60000:30000';
+    '$1(typeof window!=="undefined"&&window.location&&' +
+    'window.location.hash.indexOf("phoneVoiceLayout=true")!==-1?60000:30000)';
   return {
     name: "phone-voice-lifetime",
     renderChunk(code: string) {
-      if (!PATTERN.test(code)) return null;
-      found = true;
-      PATTERN.lastIndex = 0;
+      const matches = code.match(PATTERN);
+      if (!matches) return null;
+      hits += matches.length;
       return { code: code.replace(PATTERN, REPLACEMENT), map: null };
     },
     closeBundle() {
-      if (!found) {
+      if (hits !== 1) {
         throw new Error(
-          '[phone-voice-lifetime] "lifetime":30000 not found in bundle — ' +
-            "matrix-js-sdk was bumped; update the lifetime transform in vite-embedded.config.ts",
+          `[phone-voice-lifetime] expected one 30s lifetime literal, found ${hits} — ` +
+            "matrix-js-sdk changed shape; revisit the transform in vite-embedded.config.ts",
         );
       }
     },
