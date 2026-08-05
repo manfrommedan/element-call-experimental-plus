@@ -13,6 +13,7 @@ Please see LICENSE in the repository root for full details.
 import { afterEach, describe, test, vi } from "vitest";
 import { NEVER, type Observable } from "rxjs";
 import { type LivekitTransport } from "matrix-js-sdk/lib/matrixrtc";
+import type * as UrlParamsModule from "../../UrlParams";
 
 vi.mock("rxjs", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -28,7 +29,7 @@ const getUrlParams = vi.hoisted(() => vi.fn(() => ({})));
 // UserIntent enum, etc.), only override getUrlParams so we can stub the
 // `phoneVoiceLayout` URL flag per test.
 vi.mock("../../UrlParams", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../UrlParams")>()),
+  ...(await importOriginal<typeof UrlParamsModule>()),
   getUrlParams,
 }));
 

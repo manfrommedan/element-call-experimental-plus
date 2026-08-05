@@ -96,8 +96,6 @@ declare module "react" {
   }
 }
 
-const logger = rootLogger.getChild("[InCallView]");
-
 export interface ActiveCallProps extends Omit<
   InCallViewProps,
   "vm" | "livekitRoom" | "connState" | "footerVm"
@@ -118,7 +116,7 @@ export const ActiveCall: FC<ActiveCallProps> = (props) => {
   const mediaDevices = useMediaDevices();
   const trackProcessorState$ = useTrackProcessorObservable$();
   useEffect(() => {
-    logger.info("START CALL VIEW SCOPE");
+    rootLogger.info("START CALL VIEW SCOPE");
     const scope = new ObservableScope();
     const reactionsReader = new ReactionsReader(scope, props.rtcSession);
     const { autoLeaveWhenOthersLeft, waitForCallPickup, sendNotificationType } =
@@ -220,6 +218,7 @@ export const InCallView: FC<InCallViewProps> = ({
   muteStates,
   onShareClick,
 }) => {
+  const logger = rootLogger.getChild("[InCallView]");
   const { t } = useTranslation();
   const { sendReaction, toggleRaisedHand } = useReactionsSender();
 
@@ -263,6 +262,7 @@ export const InCallView: FC<InCallViewProps> = ({
   const reconnecting = useBehavior(vm.reconnecting$);
   const layout = useBehavior(vm.layout$);
   const edgeToEdge = useBehavior(vm.edgeToEdge$);
+  const overflowing = useBehavior(vm.overflowing$);
   const showNameTags = useBehavior(vm.showNameTags$);
   const showHeader = useBehavior(vm.showHeader$);
   const settingsOpen = useBehavior(vm.settingsOpen$);
@@ -473,6 +473,7 @@ export const InCallView: FC<InCallViewProps> = ({
             showRingingStatus={showRingingStatus}
             focusable={!contentObscured}
             className={classNames(className, styles.tile)}
+            itemClassName={styles.spotlightItem}
             style={style}
           />
         );
@@ -498,7 +499,9 @@ export const InCallView: FC<InCallViewProps> = ({
     if (layout.type === "pip") {
       return (
         <SpotlightTile
-          className={classNames(styles.tile, styles.maximised)}
+          className={styles.tile}
+          itemClassName={styles.spotlightItem}
+          data-maximised
           vm={layout.spotlight}
           expanded
           onToggleExpanded={null}
@@ -592,7 +595,9 @@ export const InCallView: FC<InCallViewProps> = ({
   const footer = phoneVoiceMode ? (
     <VoiceFooter vm={vm} muteStates={muteStates} hidden={!showFooter} />
   ) : (
-    footerVm !== null && <CallFooter ref={footerRef} vm={footerVm} />
+    footerVm !== null && (
+      <CallFooter className={styles.footer} ref={footerRef} vm={footerVm} />
+    )
   );
   const allConnections = useBehavior(vm.allConnections$);
 
@@ -601,7 +606,9 @@ export const InCallView: FC<InCallViewProps> = ({
     // and the footer is also viewable by moving focus into it, so this is fine.
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
-      className={styles.inRoom}
+      className={classNames(styles.inRoom, {
+        [styles.overflowing]: overflowing,
+      })}
       // CSS-driven landscape split: spotlight | VoiceFooter on mobile flat.
       data-phone-voice-landscape={phoneVoiceLandscape ? "true" : undefined}
       ref={containerRef}

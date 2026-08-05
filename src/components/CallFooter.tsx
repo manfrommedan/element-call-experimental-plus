@@ -8,7 +8,7 @@ Please see LICENSE in the repository root for full details.
 import { type FC, type JSX, type Ref, useMemo } from "react";
 import classNames from "classnames";
 import {
-  SpotlightIcon,
+  SpotlightViewIcon,
   GridIcon,
 } from "@vector-im/compound-design-tokens/assets/web/icons";
 import { Switch } from "@vector-im/compound-web";
@@ -112,11 +112,17 @@ export interface FooterState {
 }
 
 export interface FooterProps {
+  className?: string;
   ref?: Ref<HTMLDivElement>;
   children?: JSX.Element | JSX.Element[] | false;
   vm: ViewModel<FooterSnapshot>;
 }
-export const CallFooter: FC<FooterProps> = ({ ref, children, vm }) => {
+export const CallFooter: FC<FooterProps> = ({
+  className,
+  ref,
+  children,
+  vm,
+}) => {
   const asOverlay = useBehavior(vm.asOverlay$);
   const showFooter = useBehavior(vm.showFooter$);
   const hideControls = useBehavior(vm.hideControls$);
@@ -292,7 +298,7 @@ export const CallFooter: FC<FooterProps> = ({ ref, children, vm }) => {
     <div
       ref={ref}
       data-testid="footer-container"
-      className={classNames(styles.footer, {
+      className={classNames(className, styles.footer, {
         [styles.overlay]: asOverlay,
         [styles.hidden]: !showFooter,
       })}
@@ -317,7 +323,7 @@ export const CallFooter: FC<FooterProps> = ({ ref, children, vm }) => {
           aria-label={t("layout_switch_label")}
           leftLabel={t("layout_spotlight_label")}
           leftValue="spotlight"
-          leftIcon={SpotlightIcon}
+          leftIcon={SpotlightViewIcon}
           rightLabel={t("layout_grid_label")}
           rightValue="grid"
           rightIcon={GridIcon}
