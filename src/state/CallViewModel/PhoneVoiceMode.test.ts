@@ -95,4 +95,23 @@ describe.each([
       );
     });
   });
+
+  test("showFooter$ stays on in phone-voice mode, even after tapping the screen", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    withTestScheduler(({ behavior, schedule, expectObservable }) => {
+      withCallViewModel(
+        {
+          remoteParticipants$: constant([aliceParticipant]),
+          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          // Phone-sized, so the layout underneath is the edge-to-edge one-on-one one whose
+          // controls a tap would normally swallow. A dialer never hides the hang-up button.
+          windowSize$: behavior("a", { a: { width: 380, height: 700 } }),
+        },
+        (vm) => {
+          schedule("-t", { t: () => vm.tapScreen() });
+          expectObservable(vm.showFooter$).toBe("a", { a: true });
+        },
+      );
+    });
+  });
 });
