@@ -45,8 +45,8 @@ export interface SpotlightExpandedLayoutMedia {
   pip?: UserMediaViewModel;
 }
 
-export interface OneOnOneLandscapeLayoutMedia {
-  type: "one-on-one-landscape";
+export interface OneOnOneDesktopLayoutMedia {
+  type: "one-on-one-desktop";
   edgeToEdge: false;
   spotlight: UserMediaViewModel;
   pip: LocalUserMediaViewModel | RingingMediaViewModel;
@@ -58,8 +58,8 @@ export interface PhoneVoiceLayoutMedia {
   spotlight: UserMediaViewModel | RingingMediaViewModel;
 }
 
-export interface OneOnOnePortraitLayoutMedia {
-  type: "one-on-one-portrait";
+export interface OneOnOneMobileLayoutMedia {
+  type: "one-on-one-mobile";
   edgeToEdge: true;
   spotlight: UserMediaViewModel | RingingMediaViewModel;
   pip?: LocalUserMediaViewModel;
@@ -76,8 +76,8 @@ export type LayoutMedia =
   | SpotlightLandscapeLayoutMedia
   | SpotlightPortraitLayoutMedia
   | SpotlightExpandedLayoutMedia
-  | OneOnOneLandscapeLayoutMedia
-  | OneOnOnePortraitLayoutMedia
+  | OneOnOneDesktopLayoutMedia
+  | OneOnOneMobileLayoutMedia
   | PhoneVoiceLayoutMedia
   | PipLayoutMedia;
 
@@ -115,15 +115,15 @@ export interface SpotlightExpandedLayout {
   pipAlignment$: BehaviorSubject<Alignment>;
 }
 
-export interface OneOnOneLandscapeLayout {
-  type: "one-on-one-landscape";
+export interface OneOnOneDesktopLayout {
+  type: "one-on-one-desktop";
   spotlight: GridTileViewModel;
   pip: GridTileViewModel;
   pipAlignment$: BehaviorSubject<Alignment>;
 }
 
-export interface OneOnOnePortraitLayout {
-  type: "one-on-one-portrait";
+export interface OneOnOneMobileLayout {
+  type: "one-on-one-mobile";
   spotlight: SpotlightTileViewModel;
   pip?: GridTileViewModel;
   pipSize$: Behavior<"sm" | "lg">;
@@ -149,7 +149,7 @@ export type Layout =
   | SpotlightLandscapeLayout
   | SpotlightPortraitLayout
   | SpotlightExpandedLayout
-  | OneOnOneLandscapeLayout
-  | OneOnOnePortraitLayout
+  | OneOnOneDesktopLayout
+  | OneOnOneMobileLayout
   | PhoneVoiceLayout
   | PipLayout;
