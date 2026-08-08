@@ -12,9 +12,13 @@ Please see LICENSE in the repository root for full details.
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: var(--cpd-space-10x) var(--cpd-space-4x)
-    calc(var(--cpd-space-6x) + env(safe-area-inset-bottom));
+  gap: var(--cpd-space-4x);
+  /* Element Call's own footer padding, insets included. Without the left and right
+     insets the row drifts off-centre on a phone whose safe areas are not symmetrical. */
+  padding-inline-start: calc(env(safe-area-inset-left) + var(--cpd-space-6x));
+  padding-inline-end: calc(env(safe-area-inset-right) + var(--cpd-space-6x));
+  padding-block: var(--cpd-space-10x)
+    calc(env(safe-area-inset-bottom) + var(--cpd-space-10x));
   inline-size: 100%;
   background: linear-gradient(
     180deg,
@@ -83,9 +87,11 @@ Please see LICENSE in the repository root for full details.
 
 .row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  gap: 24px;
+  /* The same gap Element Call puts between its own call controls. Ours was double it,
+     which is what made the row look loose and pushed it wide enough to sit off-centre. */
+  gap: var(--cpd-space-3x);
 }
 
 /*
