@@ -57,3 +57,41 @@ test("ringtone plays on loop while ringing", () => {
   expect(playSoundLooping).not.toHaveBeenCalled();
   expect(endSoundLooping).toHaveBeenCalledExactlyOnceWith();
 });
+
+test("ringtone still plays when mounted into a call that is already ringing", () => {
+  (prefetchSounds as MockedFunction<typeof prefetchSounds>).mockResolvedValue({
+    sound: new ArrayBuffer(0),
+  });
+  const playSoundLooping = vi.fn().mockReturnValue(vi.fn().mockResolvedValue(undefined));
+  const useAudioContextMock = useAudioContext as MockedFunction<
+    typeof useAudioContext
+  >;
+  // The audio context is not ready on the first render, which is what happens on every mount.
+  useAudioContextMock.mockReturnValue(null);
+
+  const vm = createRingingMedia({
+    id: aliceId,
+    userId: alice.userId,
+    displayName$: constant("Alice"),
+    mxcAvatarUrl$: constant(undefined),
+    intent: "audio",
+    // Already ringing when this renderer appears, so nothing about the call will change to
+    // prompt a second attempt. This is the mid-call switch to the camera.
+    pickupState$: new BehaviorSubject<"ringing" | "timeout" | "decline">("ringing"),
+  });
+
+  const { rerender } = render(<RingingAudioRenderer vm={vm} muted={false} />);
+  expect(playSoundLooping).not.toHaveBeenCalled();
+
+  // A tick later the sounds are decoded and there is something to play through.
+  useAudioContextMock.mockReturnValue({
+    playSound: vi.fn(),
+    playSoundLooping,
+    soundDuration: {},
+  });
+  rerender(<RingingAudioRenderer vm={vm} muted={false} />);
+  expect(playSoundLooping).toHaveBeenCalledExactlyOnceWith(
+    "ringtone",
+    expect.any(Number),
+  );
+});

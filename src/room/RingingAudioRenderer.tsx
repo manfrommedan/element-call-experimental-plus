@@ -52,6 +52,12 @@ const ActiveRingingAudioRenderer: FC<ActiveRingingAudioRendererProps> = ({
 }) => {
   const audio_ = useLatest(audio);
   const pickupState = useBehavior(vm.pickupState$);
+  // An audio context takes a moment to come up and decode its sounds, so on the first render
+  // there is nothing to play through. Mounted before the ringing starts, that costs nothing: the
+  // pickup state changes later and the effect runs again. Mounted into a call that is already
+  // ringing, as when the camera goes on mid-ring and the dialler hands the screen back, nothing
+  // changes afterwards and the ring is lost. Readiness is a reason to try again.
+  const audioReady = audio !== null;
 
   // While ringing, loop the ringtone
   useEffect((): void | (() => void) => {
@@ -66,7 +72,7 @@ const ActiveRingingAudioRenderer: FC<ActiveRingingAudioRendererProps> = ({
         });
       };
     }
-  }, [pickupState, audio_]);
+  }, [pickupState, audio_, audioReady]);
 
   return null;
 };
