@@ -151,7 +151,7 @@ export interface OneOnOneDesktopLayoutSummary {
 
 export interface PhoneVoiceLayoutSummary {
   type: "phone-voice";
-  spotlight: string;
+  spotlight: string[];
 }
 
 export interface OneOnOneMobileLayoutSummary {
@@ -224,7 +224,7 @@ function summarizeLayout$(l$: Observable<Layout>): Observable<LayoutSummary> {
           return l.spotlight.media$.pipe(
             map((spotlight) => ({
               type: l.type,
-              spotlight: spotlight.id,
+              spotlight: spotlight.map((vm) => vm.id),
             })),
           );
         case "one-on-one-mobile":

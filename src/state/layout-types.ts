@@ -132,7 +132,7 @@ export interface OneOnOneMobileLayout {
 
 export interface PhoneVoiceLayout {
   type: "phone-voice";
-  spotlight: GridTileViewModel;
+  spotlight: SpotlightTileViewModel;
 }
 
 export interface PipLayout {

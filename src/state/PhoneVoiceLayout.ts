@@ -15,13 +15,17 @@ export function phoneVoiceLayout(
   media: PhoneVoiceLayoutMedia,
   prevTiles: TileStore,
 ): [PhoneVoiceLayout, TileStore] {
-  const update = prevTiles.from(1);
-  update.registerGridTile(media.spotlight);
+  const update = prevTiles.from(0);
+  // A transparent spotlight, exactly as the one-on-one mobile layout registers it. Registering a
+  // grid tile instead was quietly opting out of everything that makes the upstream call screen
+  // look the way it does: the page gradient showing through the tile, the sound waves that ring
+  // the avatar while someone speaks, and the avatar sizing that leaves room for them.
+  update.registerSpotlight([media.spotlight], true, "transparent");
   const tiles = update.build();
   return [
     {
       type: media.type,
-      spotlight: tiles.gridTilesByMedia.get(media.spotlight)!,
+      spotlight: tiles.spotlightTile!,
     },
     tiles,
   ];

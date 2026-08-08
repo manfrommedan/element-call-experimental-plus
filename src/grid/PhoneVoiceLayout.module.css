@@ -9,12 +9,11 @@ Please see LICENSE in the repository root for full details.
   block-size: 100%;
   display: grid;
   place-items: center;
-  --video-tile-background: var(--cpd-color-bg-canvas-default);
+  /* The tile is transparent now, so the page gradient is what shows through it. */
   --media-view-border-radius: 0;
 }
 
-.container {
-  position: relative;
-  inline-size: 100% !important;
-  block-size: 100% !important;
+.spotlight {
+  block-size: 100%;
+  inline-size: 100%;
 }
