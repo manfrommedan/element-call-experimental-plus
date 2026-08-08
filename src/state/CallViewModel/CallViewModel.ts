@@ -1374,12 +1374,7 @@ export function createCallViewModel$(
   const showNameTags$ = scope.behavior<boolean>(
     layoutMedia$.pipe(
       switchMap((l) =>
-        // phone-voice sits here for the same reason one-on-one-mobile does: a single
-        // spotlight whose owner is already named in the app bar, so the tag on the tile
-        // says it a second time and gets clipped by the footer for its trouble.
-        l.type === "pip" ||
-        l.type === "one-on-one-mobile" ||
-        l.type === "phone-voice"
+        l.type === "pip" || l.type === "one-on-one-mobile"
           ? matrixRoomMembers$.pipe(
               map(
                 (members) =>
