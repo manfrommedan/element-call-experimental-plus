@@ -11,7 +11,15 @@ Please see LICENSE in the repository root for full details.
 // into the rest of the suite — vitest scopes vi.mock() per test module.
 
 import { afterEach, describe, test, vi } from "vitest";
-import { map, NEVER, type Observable } from "rxjs";
+import {
+  combineLatest,
+  distinctUntilChanged,
+  map,
+  NEVER,
+  of,
+  switchMap,
+  type Observable,
+} from "rxjs";
 import { type LivekitTransport } from "matrix-js-sdk/lib/matrixrtc";
 import type * as UrlParamsModule from "../../UrlParams";
 
@@ -44,13 +52,55 @@ initializeWidget();
 
 import { withTestScheduler } from "../../utils/test";
 import {
+  alice,
+  aliceId,
   aliceParticipant,
   aliceRtcMember,
+  aliceUserId,
+  local,
+  localId,
   localRtcMember,
 } from "../../utils/test-fixtures";
 import { constant } from "../Behavior";
 import { withCallViewModel as withCallViewModelInMode } from "./CallViewModelTestUtils";
 import { MatrixRTCMode } from "../../config/ConfigOptions";
+import { type Layout } from "../layout-types";
+import { MatrixRTCSessionEvent } from "matrix-js-sdk/lib/matrixrtc";
+import { type CallNotificationWrapper } from "./CallNotificationLifecycle";
+
+// The same stand-in the other CallViewModel tests keep locally; there is no shared one.
+function mockRingEvent(
+  eventId: string,
+  lifetimeMs: number,
+): CallNotificationWrapper {
+  return {
+    event_id: eventId,
+    lifetime: lifetimeMs,
+    notification_type: "ring",
+    sender: local.userId,
+  } as unknown as CallNotificationWrapper;
+}
+
+// Who ends up where, as a line of text: marble assertions compare by deep equality, and a
+// string says which tile held whom more plainly than a nest of arrays does.
+function places$(layout$: Observable<Layout>): Observable<string> {
+  return layout$.pipe(
+    switchMap((l) =>
+      l.type === "spotlight-landscape"
+        ? combineLatest(
+            [l.spotlight.media$, ...l.grid.map((vm) => vm.media$)],
+            (spotlight, ...grid) =>
+              `big: ${spotlight.map((vm) => vm.id).join(", ")} | column: ${grid
+                .map((vm) => vm.id)
+                .join(", ")}`,
+          )
+        : of(l.type),
+    ),
+    // Identical repeats within a frame are combineLatest catching up, not anything that
+    // reaches the screen.
+    distinctUntilChanged(),
+  );
+}
 
 describe.each([
   [MatrixRTCMode.Legacy],
@@ -116,6 +166,93 @@ describe.each([
             vm.layoutSwitchVm$.pipe(map((switchVm) => switchVm !== null)),
           ).toBe("ab", { a: false, b: true });
         },
+      );
+    });
+  });
+
+  test("turning the phone on its side gives Element Call's own tiles, not a grid", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    withTestScheduler(({ behavior, expectObservable }) => {
+      withCallViewModel(
+        {
+          remoteParticipants$: constant([aliceParticipant]),
+          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          windowSize$: behavior("ab", {
+            a: { width: 360, height: 800 },
+            b: { width: 800, height: 360 },
+          }),
+        },
+        (vm) => {
+          // A "grid" here would be the bug it replaced: in a call of two it collapses to one
+          // tile, and that tile is your own. The speaker-plus-column layout keeps the other
+          // person in the big tile where you can see who you are talking to.
+          // distinctUntilChanged because the turn passes through the old layout once more
+          // within the same frame as combineLatest catches up on the new window size. That
+          // is a repeat of what was already on screen, not a flicker anyone can see.
+          expectObservable(
+            vm.layout$.pipe(
+              map((l) => l.type),
+              distinctUntilChanged(),
+            ),
+          ).toBe("ab", {
+            a: "phone-voice",
+            b: "spotlight-landscape",
+          });
+        },
+      );
+    });
+  });
+
+  test("the tiles put the other person in the spotlight and you in the column", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    withTestScheduler(({ behavior, expectObservable }) => {
+      withCallViewModel(
+        {
+          remoteParticipants$: constant([aliceParticipant]),
+          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
+        },
+        (vm) => {
+          expectObservable(places$(vm.layout$)).toBe("a", {
+            // ":0" is the tile index each media view model carries.
+            a: `big: ${aliceId}:0 | column: ${localId}:0`,
+          });
+        },
+      );
+    });
+  });
+
+  test("the tiles show who is being rung, not yourself", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    withTestScheduler(({ behavior, schedule, expectObservable }) => {
+      withCallViewModel(
+        {
+          roomMembers: [alice, local], // A direct call, nobody has picked up yet
+          windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
+        },
+        (vm, rtcSession) => {
+          schedule("n", {
+            n: () => {
+              // Braces on purpose: schedule() insists its actions return nothing, and emit()
+              // hands back a boolean.
+              rtcSession.emit(
+                MatrixRTCSessionEvent.DidSendCallNotification,
+                mockRingEvent("$notif1", 30),
+              );
+            },
+          });
+
+          // The dialler centres your own avatar while ringing, on purpose. Carried into the
+          // tiles that reads as being on a call with yourself, so the person being rung takes
+          // the big tile here and you stay in the column.
+          expectObservable(places$(vm.layout$)).toBe("(ab)", {
+            // Before the notification goes out there is nobody but you in the call, so you
+            // are the only tile there is to show — the same instant upstream has.
+            a: `big: ${localId}:0 | column: ${localId}:0`,
+            b: `big: ringing:${aliceUserId} | column: ${localId}:0`,
+          });
+        },
+        { waitForCallPickup: true },
       );
     });
   });

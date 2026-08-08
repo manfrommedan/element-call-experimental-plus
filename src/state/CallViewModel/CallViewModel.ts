@@ -1315,26 +1315,41 @@ export function createCallViewModel$(
       }),
     );
 
+  // Element Call's own answer for "grid" in a flat window: not a grid of equal tiles but a
+  // speaker filling the screen with everyone else in a column beside them. A true grid on a
+  // short window gives letterbox slivers, and in a call of two it degenerates to a single
+  // tile — your own, since the other side has yet to pick up. This is the layout the tiles
+  // control is understood to mean on a phone held sideways, so it is the one we hand over.
+  const phoneVoiceTilesMedia$ = combineLatest(
+    [spotlightLandscapeLayoutMedia$(true), ringingMedia$],
+    (media, ringing) =>
+      // While ringing, the dialler centres your own avatar rather than a room member picked
+      // at random, and spotlight$ carries that choice. It is the wrong one here: the tiles
+      // are about who is on the call, so the person being rung belongs in the big tile and
+      // you belong in the column, which is where Element Call puts you both.
+      ringing === null ? media : { ...media, spotlight: [ringing] },
+  );
+
   // With phoneVoiceMode$ on, a one-to-one call is drawn as a dialler rather than as the
   // usual pair of tiles. That is a choice, so the layout switch decides it: on "grid" the
-  // ordinary tiles come through and you see both of you, on "spotlight" the dialler does.
-  // Upstream hides that switch in a one-to-one call because there is nothing to choose
-  // between; here there is, which is why it stays.
+  // tiles come through and you see everyone, on "spotlight" the dialler does. Upstream hides
+  // that switch in a one-to-one call because there is nothing to choose between; here there
+  // is, which is why it stays.
   const layoutMedia$ = scope.behavior<LayoutMedia>(
     combineLatest([
       rawLayoutMedia$,
       phoneVoiceMode$,
       layoutSwitchVm.layout$,
-      gridLayoutMedia$,
+      phoneVoiceTilesMedia$,
       windowMode$,
     ]).pipe(
-      map(([media, phoneVoice, layoutMode, grid, windowMode]) => {
+      map(([media, phoneVoice, layoutMode, tiles, windowMode]) => {
         if (!phoneVoice) return media;
         // Tiles are a landscape affair. Held upright there is no room for two of you and a
         // dialler is the better use of the screen, so the switch is not offered and its
         // value is not honoured either: turning the phone back upright must not leave tiles
         // on screen with nothing left to undo them.
-        if (layoutMode === "grid" && windowMode === "flat") return grid;
+        if (layoutMode === "grid" && windowMode === "flat") return tiles;
         switch (media.type) {
           // Voice calls always use the phone-voice layout, including while
           // ringing: the grid tile accepts RingingMediaViewModel, so no

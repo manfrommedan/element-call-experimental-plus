@@ -39,6 +39,23 @@ Please see LICENSE in the repository root for full details.
   pointer-events: auto;
 }
 
+/* Element Call's own steps down for short windows. A phone on its side has 360px of height to
+   share between the tiles and the controls, and 40px of padding above and below the row is a
+   fifth of it spent on nothing. Same breakpoints as their footer so the two stay in step. */
+@media (max-height: 800px) {
+  .footer {
+    padding-block: var(--cpd-space-8x)
+      calc(env(safe-area-inset-bottom) + var(--cpd-space-8x));
+  }
+}
+
+@media (max-height: 400px) {
+  .footer {
+    padding-block: var(--cpd-space-4x)
+      calc(env(safe-area-inset-bottom) + var(--cpd-space-4x));
+  }
+}
+
 .timer {
   /* iOS-style placement: pinned just under the AppBar (which already shows */
   /* the recipient's name) so the screen reads "Alice / 00:23" top to       */
