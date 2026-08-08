@@ -311,6 +311,51 @@ describe.each([
     });
   });
 
+  test("a call of one is not drawn as a grid of one, which would be your own face", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    withTestScheduler(({ behavior, expectObservable }) => {
+      withCallViewModel(
+        {
+          // Nobody else in the call and no ring going out: the pair layouts do not apply, and
+          // upstream falls back to a grid, whose only tile is yours.
+          remoteParticipants$: constant([]),
+          rtcMembers$: constant([localRtcMember]),
+          windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
+        },
+        (vm) => {
+          expectObservable(
+            vm.layout$.pipe(
+              map((l) => l.type),
+              distinctUntilChanged(),
+            ),
+          ).toBe("a", { a: "spotlight-expanded" });
+        },
+      );
+    });
+  });
+
+  test("with the flag off, the layout is whatever Element Call would have drawn", () => {
+    getUrlParams.mockImplementation(() => ({}));
+    withTestScheduler(({ behavior, expectObservable }) => {
+      withCallViewModel(
+        {
+          remoteParticipants$: constant([]),
+          rtcMembers$: constant([localRtcMember]),
+          windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
+        },
+        (vm) => {
+          // The same call the test above starts from. None of the dialler's rules may reach it.
+          expectObservable(
+            vm.layout$.pipe(
+              map((l) => l.type),
+              distinctUntilChanged(),
+            ),
+          ).toBe("a", { a: "grid" });
+        },
+      );
+    });
+  });
+
   test("showFooter$ stays on in phone-voice mode, even after tapping the screen", () => {
     getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
     withTestScheduler(({ behavior, schedule, expectObservable }) => {

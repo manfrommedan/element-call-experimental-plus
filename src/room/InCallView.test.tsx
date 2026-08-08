@@ -46,6 +46,8 @@ import { MediaDevicesContext } from "../MediaDevicesContext";
 import { type MediaDevices as ECMediaDevices } from "../state/MediaDevices";
 import { AppBar } from "../AppBar";
 import { initializeWidget } from "../widget";
+import { useAudioContext } from "../useAudioContext";
+import type * as UrlParamsModule from "../UrlParams";
 
 initializeWidget();
 vi.hoisted(
@@ -60,6 +62,19 @@ vi.hoisted(
 
 vi.mock("../soundUtils");
 vi.mock("../useAudioContext");
+// Partial mock: everything else in the module stays real, and so does the parsing, so every
+// test that came before this sees exactly what it saw. Only the dialler test swaps the answer.
+const urlParams = vi.hoisted(() => ({
+  real: (() => ({})) as () => object,
+  answer: (() => ({})) as () => object,
+}));
+const getUrlParams = vi.hoisted(() => vi.fn(() => urlParams.answer()));
+vi.mock("../UrlParams", async (importOriginal) => {
+  const actual = await importOriginal<typeof UrlParamsModule>();
+  urlParams.real = actual.getUrlParams;
+  urlParams.answer = actual.getUrlParams;
+  return { ...actual, getUrlParams };
+});
 vi.mock("../tile/GridTile");
 vi.mock("../tile/SpotlightTile");
 vi.mock("@livekit/components-react");
@@ -82,6 +97,7 @@ let useRoomEncryptionSystemMock: MockedFunction<typeof useRoomEncryptionSystem>;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  urlParams.answer = urlParams.real;
 
   // MatrixAudioRenderer is tested separately.
   (
@@ -224,5 +240,26 @@ describe("InCallView", () => {
       // Clicking the button should call select -> switchFn with the earpiece device id
       expect(switchFn).toHaveBeenCalledWith("earpiece-id");
     });
+  });
+});
+
+describe("ringing sounds", () => {
+  // Every audio renderer on the screen asks for a context, and each says whether it should be
+  // silent. We only care that one of them is silenced, and which one is not something the call
+  // screen exposes by name.
+  const mutedFlags = (): unknown[] =>
+    (useAudioContext as MockedFunction<typeof useAudioContext>).mock.calls.map(
+      ([args]) => args.muted,
+    );
+
+  it("silences Element Call's ringtone when the dialler is on, since it rings for itself", () => {
+    urlParams.answer = () => ({ ...urlParams.real(), phoneVoiceLayout: true });
+    createInCallView();
+    expect(mutedFlags()).toContain(true);
+  });
+
+  it("leaves the ringtone alone without the dialler", () => {
+    createInCallView();
+    expect(mutedFlags()).not.toContain(true);
   });
 });

@@ -1353,45 +1353,55 @@ export function createCallViewModel$(
   // usual pair of tiles. That is a choice, so the switch above decides it. Upstream hides its
   // switch in a one-to-one call because there is nothing to choose between; here there is,
   // which is why ours appears.
+  const phoneVoiceLayoutMedia$ = combineLatest([
+    rawLayoutMedia$,
+    phoneVoiceTiles$,
+    phoneVoiceTilesMedia$,
+    phoneVoiceSpeakerMedia$,
+    windowMode$,
+  ]).pipe(
+    map(([media, showTiles, tiles, speakerOnly, windowMode]): LayoutMedia => {
+      // Tiles are a landscape affair, and even there only when asked for. Held upright the
+      // switch is not offered and a choice made on its side is not honoured either: turning
+      // back upright must not leave tiles on screen with nothing to undo them.
+      const sideways = windowMode === "flat";
+      if (sideways && showTiles) return tiles;
+      switch (media.type) {
+        // Voice calls always use the phone-voice layout, including while
+        // ringing: the grid tile accepts RingingMediaViewModel, so no
+        // special-casing of the ringing spotlight is needed.
+        case "one-on-one-desktop":
+        case "one-on-one-mobile":
+          return {
+            type: "phone-voice",
+            edgeToEdge: media.edgeToEdge,
+            spotlight: media.spotlight,
+          };
+        // What a flat window gives when the call is not a pair: the other party has not picked
+        // up yet and the ring has lapsed, or there are three of you. Upstream's answer there is
+        // the tiles, which is the very thing a turn must not bring on by itself, so the speaker
+        // gets the screen instead until the switch says otherwise.
+        case "spotlight-landscape":
+          return sideways ? speakerOnly : media;
+        // A grid of one is not a grid. Held upright, the same call comes through as a single
+        // tile, and that tile is your own, which reads as a call with yourself.
+        case "grid":
+          return media.grid.length <= 1 ? speakerOnly : media;
+        case "spotlight-expanded":
+          return media.pip === undefined ? media : { ...media, pip: undefined };
+        default:
+          return media;
+      }
+    }),
+  );
+
   const layoutMedia$ = scope.behavior<LayoutMedia>(
-    combineLatest([
-      rawLayoutMedia$,
-      phoneVoiceMode$,
-      phoneVoiceTiles$,
-      phoneVoiceTilesMedia$,
-      phoneVoiceSpeakerMedia$,
-      windowMode$,
-    ]).pipe(
-      map(([media, phoneVoice, showTiles, tiles, speakerOnly, windowMode]) => {
-        if (!phoneVoice) return media;
-        // Tiles are a landscape affair, and even there only when asked for. Held upright the
-        // switch is not offered and a choice made on its side is not honoured either: turning
-        // back upright must not leave tiles on screen with nothing to undo them.
-        const sideways = windowMode === "flat";
-        if (sideways && showTiles) return tiles;
-        switch (media.type) {
-          // Voice calls always use the phone-voice layout, including while
-          // ringing: the grid tile accepts RingingMediaViewModel, so no
-          // special-casing of the ringing spotlight is needed.
-          case "one-on-one-desktop":
-          case "one-on-one-mobile":
-            return {
-              type: "phone-voice",
-              edgeToEdge: media.edgeToEdge,
-              spotlight: media.spotlight,
-            };
-          // What a flat window gives when the call is not a pair: the other party has not
-          // picked up yet and the ring has lapsed, or there are three of you. Upstream's answer
-          // there is the tiles, which is the very thing a turn must not bring on by itself, so
-          // the speaker gets the screen instead until the switch says otherwise.
-          case "spotlight-landscape":
-            return sideways ? speakerOnly : media;
-          case "spotlight-expanded":
-            return media.pip === undefined ? media : { ...media, pip: undefined };
-          default:
-            return media;
-        }
-      }),
+    // Switched on rather than combined with, so that with the flag off none of the layouts the
+    // dialler needs are subscribed to and Element Call's own path runs untouched.
+    phoneVoiceMode$.pipe(
+      switchMap((phoneVoice) =>
+        phoneVoice ? phoneVoiceLayoutMedia$ : rawLayoutMedia$,
+      ),
     ),
   );
 
