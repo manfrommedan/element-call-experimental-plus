@@ -399,8 +399,6 @@ export interface CallViewModel {
 
   // True iff phoneVoiceLayout URL flag is set and the local camera is off.
   phoneVoiceMode$: Behavior<boolean>;
-  // True iff the phone-voice layout should use its landscape split.
-  phoneVoiceLandscape$: Behavior<boolean>;
 }
 
 /**
@@ -1078,19 +1076,6 @@ export function createCallViewModel$(
   const windowMode$ = scope.behavior<WindowMode>(
     pipEnabled$.pipe(
       switchMap((pip) => (pip ? of<WindowMode>("pip") : naturalWindowMode$)),
-    ),
-  );
-
-  /**
-   * Whether the phone-voice layout should use its landscape split (spotlight
-   * beside the voice footer), i.e. a mobile voice call in the flat window mode.
-   */
-  const phoneVoiceLandscape$ = scope.behavior<boolean>(
-    combineLatest([phoneVoiceMode$, windowMode$]).pipe(
-      map(
-        ([phoneVoice, windowMode]) =>
-          phoneVoice && windowMode === "flat" && platform !== "desktop",
-      ),
     ),
   );
 
@@ -1918,7 +1903,6 @@ export function createCallViewModel$(
     livekitRoomItems$,
     connected$: localMembership.connected$,
     phoneVoiceMode$,
-    phoneVoiceLandscape$,
   };
 }
 

@@ -256,7 +256,6 @@ export const InCallView: FC<InCallViewProps> = ({
 
   const phoneVoiceMode = useBehavior(vm.phoneVoiceMode$);
   const ringingVm = useBehavior(vm.ringingVm$);
-  const phoneVoiceLandscape = useBehavior(vm.phoneVoiceLandscape$);
   const audioParticipants = useBehavior(vm.livekitRoomItems$);
   const participantCount = useBehavior(vm.participantCount$);
   const reconnecting = useBehavior(vm.reconnecting$);
@@ -609,8 +608,6 @@ export const InCallView: FC<InCallViewProps> = ({
       className={classNames(styles.inRoom, {
         [styles.overflowing]: overflowing,
       })}
-      // CSS-driven landscape split: spotlight | VoiceFooter on mobile flat.
-      data-phone-voice-landscape={phoneVoiceLandscape ? "true" : undefined}
       ref={containerRef}
       onPointerUp={onViewPointerUp}
       onPointerMove={onPointerMove}

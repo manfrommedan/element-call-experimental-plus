@@ -78,16 +78,6 @@ Please see LICENSE in the repository root for full details.
   }
 }
 
-/* In landscape phone-style mode the screen is split into a spotlight pane
- * on the left and a dock pane on the right. The timer is position:fixed so
- * it tracks the viewport, not the grid; without this override its
- * `inset-inline: 0` would centre the text across the whole screen and
- * smear it across the dock pane. Constrain to the left half of the
- * viewport so the text centres over the spotlight where the avatar lives,
- * mirroring the column split set up in InCallView for this mode. */
-[data-phone-voice-landscape="true"] .timer {
-  inset-inline-end: 50%;
-}
 
 .row {
   display: flex;
@@ -98,80 +88,7 @@ Please see LICENSE in the repository root for full details.
   gap: var(--cpd-space-3x);
 }
 
-/*
- * Landscape phone-style split layout: the right column is tall and narrow,
- * so stack the four buttons vertically instead of squeezing them into a
- * horizontal row. Each row of the stack gets the full column width — the
- * label fits beneath the icon comfortably without truncation.
- *
- * Gate on the same `data-phone-voice-landscape` attribute InCallView
- * writes on its root, which is itself gated on phoneVoiceMode AND a flat
- * window AND a mobile platform. So a desktop user who shrinks their
- * browser to landscape-phone-shape never sees this rearranged layout.
- */
-/* The footer fills the entire right grid cell so its own
- * justify-content can vertically centre the icon column — without
- * `flex: 1` the footer would only be as tall as its content, leaving
- * the buttons orphaned at the top of the cell. We also disarm the
- * sticky-bottom positioning that the portrait layout uses, since
- * sticky behaves oddly inside a CSS-grid track.
- *
- * `align-items: flex-end` pins the dock to the right edge of the
- * cell (with a small inset so it doesn't kiss the bezel) instead of
- * floating dead-centre — that read as orphaned, like an island. */
-[data-phone-voice-landscape="true"] .footer {
-  position: static;
-  flex: 1;
-  justify-content: center;
-  align-items: flex-end;
-  padding-block: var(--cpd-space-4x);
-  /* Hug the right edge: minimal breathing-room on devices without a
-   * curved bezel / notch, plus the platform safe-area-inset on phones
-   * that have one. Two-step fallback for older WebViews: the simple
-   * declaration applies on every browser, then the modern one with
-   * env() + max() takes precedence on Chromium 79+ (Android 9+). */
-  padding-inline-start: 0;
-  /* 16 px hits the Material Design floor for an edge-anchored surface
-   * (Bottom App Bar / FAB rest there) and the iOS Human Interface
-   * Guidelines `default-margin` for landscape. Tap targets within
-   * 16 px don't collide with the system gesture inset — the OS
-   * distinguishes a tap from a swipe-from-edge. Curved displays
-   * automatically widen the gap through env(safe-area-inset-right).
-   *
-   * Two-step fallback: the static declaration applies on every
-   * browser, the env()+max() one overrides on Chromium 79+ (Android
-   * 9+) so older WebViews still get a sensible floor. */
-  padding-inline-end: var(--cpd-space-4x);
-  padding-inline-end: max(var(--cpd-space-4x), env(safe-area-inset-right));
-  background: none;
-}
 
-/* The button-row collapses into a vertical icon column wrapped in a
- * pill-shaped surface — reads as a floating dock instead of icons
- * orphaned in the right pane. We use the primary subtle canvas (one
- * notch above the buttons' own subtle-secondary fill) so the circular
- * icon backgrounds stay visible against the pill rather than blending
- * into it; a soft drop shadow gives the dock a sense of elevation
- * against the spotlight tile.
- *
- * Both the enter and exit are smoothed via `transition` on every
- * landscape-only property. Toggling `data-phone-voice-landscape` on the
- * ancestor moves these from their portrait defaults to the dock values
- * (or back); the .row element itself stays mounted, so transition
- * picks up automatically. flex-direction can't be transitioned —
- * the row-to-column reflow is the unavoidable visual snap — but the
- * surrounding pill morphs in/out softly enough that the snap reads as
- * intentional rather than a glitch. */
-[data-phone-voice-landscape="true"] .row {
-  flex-direction: column;
-  gap: var(--cpd-space-6x);
-  align-items: center;
-  padding: var(--cpd-space-4x) var(--cpd-space-3x);
-  background: var(--cpd-color-bg-subtle-primary);
-  border-radius: 999px;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
-  transform: scale(1);
-}
 
 .row {
   /* 150 ms hits the snappy-but-perceivable sweet spot for short UI
