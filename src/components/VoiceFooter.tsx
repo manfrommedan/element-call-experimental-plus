@@ -29,6 +29,7 @@ import {
   VideoButton,
 } from "../button/Button";
 import { type CallViewModel } from "../state/CallViewModel/CallViewModel";
+import { LayoutSwitch } from "../room/LayoutSwitch";
 import { type AudioOutputDeviceLabel } from "../state/MediaDevices";
 import { type MuteStates } from "../state/MuteStates";
 import { useMediaDevices } from "../MediaDevicesContext";
@@ -65,6 +66,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const videoEnabled = useObservableEagerState(muteStates.video.enabled$);
   const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
   const participantCount = useObservableEagerState(vm.participantCount$);
+  const layoutSwitchVm = useObservableEagerState(vm.layoutSwitchVm$);
   const ringingVm = useObservableEagerState(vm.ringingVm$);
   const ringing = ringingVm !== null;
   const isWaitingForRemote = participantCount <= 1;
@@ -211,6 +213,9 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
           />
           <EndCallButton size="lg" onClick={onHangupClick} />
         </div>
+        {layoutSwitchVm !== null && (
+          <LayoutSwitch vm={layoutSwitchVm} className={styles.layoutSwitch} />
+        )}
         <AudioOutputPicker
           open={pickerOpen}
           outputs={outputs}

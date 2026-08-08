@@ -184,3 +184,10 @@ Please see LICENSE in the repository root for full details.
   inline-size: 20px;
   block-size: 20px;
 }
+
+/* Element Call parks its layout switch at the end of the footer row; ours sits under the
+   controls, because our row is centred on the screen rather than laid out in a grid with a
+   slot to spare on the right. */
+.layoutSwitch {
+  align-self: center;
+}
