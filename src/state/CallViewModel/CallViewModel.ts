@@ -1326,10 +1326,15 @@ export function createCallViewModel$(
       phoneVoiceMode$,
       layoutSwitchVm.layout$,
       gridLayoutMedia$,
+      windowMode$,
     ]).pipe(
-      map(([media, phoneVoice, layoutMode, grid]) => {
+      map(([media, phoneVoice, layoutMode, grid, windowMode]) => {
         if (!phoneVoice) return media;
-        if (layoutMode === "grid") return grid;
+        // Tiles are a landscape affair. Held upright there is no room for two of you and a
+        // dialler is the better use of the screen, so the switch is not offered and its
+        // value is not honoured either: turning the phone back upright must not leave tiles
+        // on screen with nothing left to undo them.
+        if (layoutMode === "grid" && windowMode === "flat") return grid;
         switch (media.type) {
           // Voice calls always use the phone-voice layout, including while
           // ringing: the grid tile accepts RingingMediaViewModel, so no
@@ -1870,10 +1875,13 @@ export function createCallViewModel$(
     spotlightExpanded$: spotlightExpanded$,
     toggleSpotlightExpanded$: toggleSpotlightExpanded$,
     layoutSwitchVm$: scope.behavior(
-      combineLatest([showLayoutSwitch$, phoneVoiceMode$]).pipe(
-        // Offered throughout a phone-voice call: it chooses between the dialler and the
-        // tiles, which is a choice that exists whoever else is on the call.
-        map(([show, phoneVoice]) => (show || phoneVoice ? layoutSwitchVm : null)),
+      combineLatest([showLayoutSwitch$, phoneVoiceMode$, windowMode$]).pipe(
+        // Offered in a phone-voice call once the phone is on its side, where there is room
+        // for the tiles it switches to. Upright it has only one answer, and a control with
+        // one answer is in the way rather than at hand.
+        map(([show, phoneVoice, windowMode]) =>
+          show || (phoneVoice && windowMode === "flat") ? layoutSwitchVm : null,
+        ),
       ),
     ),
     layout$: layout$,

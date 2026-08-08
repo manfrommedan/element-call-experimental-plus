@@ -96,20 +96,25 @@ describe.each([
     });
   });
 
-  test("the layout switch is offered throughout a phone-voice call", () => {
+  test("the layout switch appears once the phone is on its side, and not before", () => {
     getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ expectObservable }) => {
+    withTestScheduler(({ behavior, expectObservable }) => {
       withCallViewModel(
         {
           remoteParticipants$: constant([aliceParticipant]),
           rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          // Upright first, then turned on its side.
+          windowSize$: behavior("ab", {
+            a: { width: 360, height: 800 },
+            b: { width: 800, height: 360 },
+          }),
         },
         (vm) => {
-          // Upstream withholds it in a two-person call because the layout never changes.
-          // Here it does: the switch is what chooses the dialler over the tiles.
+          // Upright the switch has one answer, and a control with one answer is only in
+          // the way; on its side there is room for the tiles it chooses.
           expectObservable(
             vm.layoutSwitchVm$.pipe(map((switchVm) => switchVm !== null)),
-          ).toBe("a", { a: true });
+          ).toBe("ab", { a: false, b: true });
         },
       );
     });
