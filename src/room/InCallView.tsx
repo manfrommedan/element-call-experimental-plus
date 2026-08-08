@@ -592,7 +592,12 @@ export const InCallView: FC<InCallViewProps> = ({
 
   // Only hide the settings button if we have an AppBar header and we are showing the header
   const footer = phoneVoiceMode ? (
-    <VoiceFooter vm={vm} muteStates={muteStates} hidden={!showFooter} />
+    <VoiceFooter
+      vm={vm}
+      muteStates={muteStates}
+      reactionIdentifier={`${client.getUserId()}:${client.getDeviceId()}`}
+      hidden={!showFooter}
+    />
   ) : (
     footerVm !== null && (
       <CallFooter className={styles.footer} ref={footerRef} vm={footerVm} />

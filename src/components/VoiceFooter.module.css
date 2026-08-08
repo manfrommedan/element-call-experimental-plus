@@ -9,10 +9,17 @@ Please see LICENSE in the repository root for full details.
   position: sticky;
   inset-block-end: 0;
   z-index: var(--call-view-header-footer-layer);
-  display: flex;
-  flex-direction: column;
+  /* Element Call's own footer grid: an empty column, the controls in the middle and the
+     layout switch at the end. The controls land in the centre of the screen because the
+     outer columns are equal, not because anything is centred by hand. */
+  display: grid;
+  /* minmax(0, …) rather than a bare 1fr: the side columns must be allowed to collapse to
+     nothing, otherwise a full row of controls plus the layout switch pushes the grid wider
+     than the screen instead of the columns giving way. */
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas: ". buttons layout";
   align-items: center;
-  gap: var(--cpd-space-4x);
+  gap: var(--cpd-space-3x);
   /* Element Call's own footer padding, insets included. Without the left and right
      insets the row drifts off-centre on a phone whose safe areas are not symmetrical. */
   padding-inline-start: calc(env(safe-area-inset-left) + var(--cpd-space-6x));
@@ -80,11 +87,15 @@ Please see LICENSE in the repository root for full details.
 
 
 .row {
+  grid-area: buttons;
+  justify-self: center;
+  /* Lets the row itself shrink rather than overflow if the controls ever outgrow the width. */
+  min-inline-size: 0;
+  flex-wrap: wrap;
+  justify-content: center;
   display: flex;
   align-items: center;
-  justify-content: center;
-  /* The same gap Element Call puts between its own call controls. Ours was double it,
-     which is what made the row look loose and pushed it wide enough to sit off-centre. */
+  /* The same gap Element Call puts between its own call controls. */
   gap: var(--cpd-space-3x);
 }
 
@@ -185,9 +196,8 @@ Please see LICENSE in the repository root for full details.
   block-size: 20px;
 }
 
-/* Element Call parks its layout switch at the end of the footer row; ours sits under the
-   controls, because our row is centred on the screen rather than laid out in a grid with a
-   slot to spare on the right. */
+/* Where Element Call puts it: the end of the same row as the controls, not beneath them. */
 .layoutSwitch {
-  align-self: center;
+  grid-area: layout;
+  justify-self: end;
 }

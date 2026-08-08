@@ -28,6 +28,7 @@ import {
   MicButton,
   VideoButton,
 } from "../button/Button";
+import { ReactionToggleButton } from "../button/ReactionToggleButton";
 import { type CallViewModel } from "../state/CallViewModel/CallViewModel";
 import { LayoutSwitch } from "../room/LayoutSwitch";
 import { type AudioOutputDeviceLabel } from "../state/MediaDevices";
@@ -56,10 +57,17 @@ const RINGBACK_RAMP_S = 0.08;
 interface Props {
   vm: CallViewModel;
   muteStates: MuteStates;
+  /** Identifies the local user to the reactions, as "@user:server:DEVICE". */
+  reactionIdentifier: string;
   hidden?: boolean;
 }
 
-export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
+export const VoiceFooter: FC<Props> = ({
+  vm,
+  muteStates,
+  reactionIdentifier,
+  hidden,
+}) => {
   const { t } = useTranslation();
   const audioEnabled = useObservableEagerState(muteStates.audio.enabled$);
   const toggleAudio = useObservableEagerState(muteStates.audio.toggle$);
@@ -67,6 +75,10 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
   const participantCount = useObservableEagerState(vm.participantCount$);
   const layoutSwitchVm = useObservableEagerState(vm.layoutSwitchVm$);
+  const reactionData = useMemo(
+    () => ({ handsRaised$: vm.handsRaised$, reactions$: vm.reactions$ }),
+    [vm.handsRaised$, vm.reactions$],
+  );
   const ringingVm = useObservableEagerState(vm.ringingVm$);
   const ringing = ringingVm !== null;
   const isWaitingForRemote = participantCount <= 1;
@@ -205,6 +217,13 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
               disabled={outputs.length < 2}
             />
           </Tooltip>
+          {/* Reactions and a raised hand work as well on a voice call as anywhere else, and
+          Element Call has always offered them. This footer was the only one without. */}
+          <ReactionToggleButton
+            size="lg"
+            identifier={reactionIdentifier}
+            reactionData={reactionData}
+          />
           <VideoButton
             size="lg"
             enabled={videoActive}
