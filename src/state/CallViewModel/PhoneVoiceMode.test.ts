@@ -17,6 +17,7 @@ import {
   map,
   NEVER,
   of,
+  skipWhile,
   switchMap,
   type Observable,
 } from "rxjs";
@@ -170,31 +171,35 @@ describe.each([
     });
   });
 
-  test("turning the phone on its side gives Element Call's own tiles, not a grid", () => {
+  test("turning the phone changes nothing on its own, the switch does", () => {
     getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, expectObservable }) => {
+    withTestScheduler(({ behavior, schedule, expectObservable }) => {
       withCallViewModel(
         {
           remoteParticipants$: constant([aliceParticipant]),
           rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          // Upright, then turned on its side and left there.
           windowSize$: behavior("ab", {
             a: { width: 360, height: 800 },
             b: { width: 800, height: 360 },
           }),
         },
         (vm) => {
-          // A "grid" here would be the bug it replaced: in a call of two it collapses to one
-          // tile, and that tile is your own. The speaker-plus-column layout keeps the other
-          // person in the big tile where you can see who you are talking to.
-          // distinctUntilChanged because the turn passes through the old layout once more
-          // within the same frame as combineLatest catches up on the new window size. That
-          // is a repeat of what was already on screen, not a flicker anyone can see.
+          schedule("--t", {
+            t: () => {
+              vm.layoutSwitchVm$.value!.setLayout("grid");
+            },
+          });
+
+          // A turn only makes the tiles available. Upstream's own switch would have engaged
+          // them here by itself, since "grid" is its natural value in a window this shape,
+          // and a call of two is a dialler until you say otherwise.
           expectObservable(
             vm.layout$.pipe(
               map((l) => l.type),
               distinctUntilChanged(),
             ),
-          ).toBe("ab", {
+          ).toBe("a-b", {
             a: "phone-voice",
             b: "spotlight-landscape",
           });
@@ -205,7 +210,7 @@ describe.each([
 
   test("the tiles put the other person in the spotlight and you in the column", () => {
     getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, expectObservable }) => {
+    withTestScheduler(({ behavior, schedule, expectObservable }) => {
       withCallViewModel(
         {
           remoteParticipants$: constant([aliceParticipant]),
@@ -213,9 +218,15 @@ describe.each([
           windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
         },
         (vm) => {
-          expectObservable(places$(vm.layout$)).toBe("a", {
+          schedule("t", {
+            t: () => {
+              vm.layoutSwitchVm$.value!.setLayout("grid");
+            },
+          });
+          expectObservable(places$(vm.layout$)).toBe("(ab)", {
+            a: "phone-voice",
             // ":0" is the tile index each media view model carries.
-            a: `big: ${aliceId}:0 | column: ${localId}:0`,
+            b: `big: ${aliceId}:0 | column: ${localId}:0`,
           });
         },
       );
@@ -231,7 +242,7 @@ describe.each([
           windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
         },
         (vm, rtcSession) => {
-          schedule("n", {
+          schedule("nt", {
             n: () => {
               // Braces on purpose: schedule() insists its actions return nothing, and emit()
               // hands back a boolean.
@@ -240,15 +251,20 @@ describe.each([
                 mockRingEvent("$notif1", 30),
               );
             },
+            t: () => {
+              vm.layoutSwitchVm$.value!.setLayout("grid");
+            },
           });
 
           // The dialler centres your own avatar while ringing, on purpose. Carried into the
           // tiles that reads as being on a call with yourself, so the person being rung takes
           // the big tile here and you stay in the column.
-          expectObservable(places$(vm.layout$)).toBe("(ab)", {
-            // Before the notification goes out there is nobody but you in the call, so you
-            // are the only tile there is to show — the same instant upstream has.
-            a: `big: ${localId}:0 | column: ${localId}:0`,
+          // Skip the moment before the call knows it is a call of two, when the layout is
+          // still whatever the window shape alone would give.
+          expectObservable(
+            places$(vm.layout$).pipe(skipWhile((v) => v !== "phone-voice")),
+          ).toBe("ab", {
+            a: "phone-voice",
             b: `big: ringing:${aliceUserId} | column: ${localId}:0`,
           });
         },

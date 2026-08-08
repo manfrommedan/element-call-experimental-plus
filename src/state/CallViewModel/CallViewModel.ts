@@ -1318,7 +1318,7 @@ export function createCallViewModel$(
   // Element Call's own answer for "grid" in a flat window: not a grid of equal tiles but a
   // speaker filling the screen with everyone else in a column beside them. A true grid on a
   // short window gives letterbox slivers, and in a call of two it degenerates to a single
-  // tile — your own, since the other side has yet to pick up. This is the layout the tiles
+  // tile, your own, since the other side has yet to pick up. This is the layout the tiles
   // control is understood to mean on a phone held sideways, so it is the one we hand over.
   const phoneVoiceTilesMedia$ = combineLatest(
     [spotlightLandscapeLayoutMedia$(true), ringingMedia$],
@@ -1330,32 +1330,43 @@ export function createCallViewModel$(
       ringing === null ? media : { ...media, spotlight: [ringing] },
   );
 
+  // A switch of our own for the dialler, because upstream's cannot serve here: its natural
+  // value in a flat window is already "grid", so merely turning the phone would engage the
+  // tiles unasked. A call of two stays a dialler until you say otherwise, on its side as much
+  // as upright; the turn changes what is available, not what is on screen.
+  const phoneVoiceTilesToggle$ = new Subject<boolean>();
+  const phoneVoiceTiles$ = scope.behavior(phoneVoiceTilesToggle$, false);
+  const phoneVoiceLayoutSwitchVm: LayoutSwitchViewModel = {
+    layout$: scope.behavior(
+      phoneVoiceTiles$.pipe(map((tiles) => (tiles ? "grid" : "spotlight"))),
+    ),
+    setLayout: (value) => phoneVoiceTilesToggle$.next(value === "grid"),
+  };
+
   // With phoneVoiceMode$ on, a one-to-one call is drawn as a dialler rather than as the
-  // usual pair of tiles. That is a choice, so the layout switch decides it: on "grid" the
-  // tiles come through and you see everyone, on "spotlight" the dialler does. Upstream hides
-  // that switch in a one-to-one call because there is nothing to choose between; here there
-  // is, which is why it stays.
+  // usual pair of tiles. That is a choice, so the switch above decides it. Upstream hides its
+  // switch in a one-to-one call because there is nothing to choose between; here there is,
+  // which is why ours appears.
   const layoutMedia$ = scope.behavior<LayoutMedia>(
     combineLatest([
       rawLayoutMedia$,
       phoneVoiceMode$,
-      layoutSwitchVm.layout$,
+      phoneVoiceTiles$,
       phoneVoiceTilesMedia$,
       windowMode$,
     ]).pipe(
-      map(([media, phoneVoice, layoutMode, tiles, windowMode]) => {
+      map(([media, phoneVoice, showTiles, tiles, windowMode]) => {
         if (!phoneVoice) return media;
-        // Tiles are a landscape affair. Held upright there is no room for two of you and a
-        // dialler is the better use of the screen, so the switch is not offered and its
-        // value is not honoured either: turning the phone back upright must not leave tiles
-        // on screen with nothing left to undo them.
-        if (layoutMode === "grid" && windowMode === "flat") return tiles;
         switch (media.type) {
           // Voice calls always use the phone-voice layout, including while
           // ringing: the grid tile accepts RingingMediaViewModel, so no
           // special-casing of the ringing spotlight is needed.
           case "one-on-one-desktop":
           case "one-on-one-mobile":
+            // Tiles are a landscape affair. Held upright there is no room for two of you, so
+            // the switch is not offered and a choice made on its side is not honoured either:
+            // turning back upright must not leave tiles on screen with nothing to undo them.
+            if (showTiles && windowMode === "flat") return tiles;
             return {
               type: "phone-voice",
               edgeToEdge: media.edgeToEdge,
@@ -1890,12 +1901,21 @@ export function createCallViewModel$(
     spotlightExpanded$: spotlightExpanded$,
     toggleSpotlightExpanded$: toggleSpotlightExpanded$,
     layoutSwitchVm$: scope.behavior(
-      combineLatest([showLayoutSwitch$, phoneVoiceMode$, windowMode$]).pipe(
-        // Offered in a phone-voice call once the phone is on its side, where there is room
-        // for the tiles it switches to. Upright it has only one answer, and a control with
-        // one answer is in the way rather than at hand.
-        map(([show, phoneVoice, windowMode]) =>
-          show || (phoneVoice && windowMode === "flat") ? layoutSwitchVm : null,
+      combineLatest([
+        showLayoutSwitch$,
+        phoneVoiceMode$,
+        windowMode$,
+        oneOnOneLayoutMedia$,
+      ]).pipe(
+        // A dialler on its side gets ours, which starts on the dialler and offers the tiles.
+        // Everything else keeps upstream's, so a call of three or more in landscape behaves
+        // exactly as it does without the flag.
+        map(([show, phoneVoice, windowMode, oneOnOne]) =>
+          phoneVoice && windowMode === "flat" && oneOnOne !== null
+            ? phoneVoiceLayoutSwitchVm
+            : show
+              ? layoutSwitchVm
+              : null,
         ),
       ),
     ),
