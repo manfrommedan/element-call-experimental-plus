@@ -184,10 +184,11 @@ export function withCallViewModel(mode: MatrixRTCMode) {
         );
       });
 
+    const muteStates = mockMuteStates();
+
     const roomEventSelectorSpy = vi
       .spyOn(ComponentsCore, "roomEventSelector")
       .mockImplementation((_room, _eventType) => of());
-    const muteStates = mockMuteStates();
     const raisedHands$ = new BehaviorSubject<Record<string, RaisedHandInfo>>(
       {},
     );

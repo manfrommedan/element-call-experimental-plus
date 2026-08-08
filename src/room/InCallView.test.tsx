@@ -14,7 +14,7 @@ import {
   type MockedFunction,
   vi,
 } from "vitest";
-import { render, type RenderResult } from "@testing-library/react";
+import { act, render, type RenderResult } from "@testing-library/react";
 import { type LocalParticipant } from "livekit-client";
 import { BehaviorSubject, of } from "rxjs";
 import { BrowserRouter } from "react-router-dom";
@@ -39,6 +39,9 @@ import {
   type CallViewModelOptions,
 } from "../state/CallViewModel/CallViewModel";
 import { alice, local } from "../utils/test-fixtures";
+import { HeaderStyle } from "../UrlParams";
+import { type CallMembership } from "matrix-js-sdk/lib/matrixrtc";
+import { MatrixRTCSessionEvent } from "matrix-js-sdk/lib/matrixrtc";
 import { ReactionsSenderProvider } from "../reactions/useReactionsSender";
 import { useRoomEncryptionSystem } from "../e2ee/sharedKeyManagement";
 import { LivekitRoomAudioRenderer } from "../livekit/MatrixAudioRenderer";
@@ -46,7 +49,8 @@ import { MediaDevicesContext } from "../MediaDevicesContext";
 import { type MediaDevices as ECMediaDevices } from "../state/MediaDevices";
 import { AppBar } from "../AppBar";
 import { initializeWidget } from "../widget";
-import { useAudioContext } from "../useAudioContext";
+import { RingingAudioRenderer } from "./RingingAudioRenderer";
+import { RingingStatus } from "../tile/RingingStatus";
 import type * as UrlParamsModule from "../UrlParams";
 
 initializeWidget();
@@ -62,6 +66,14 @@ vi.hoisted(
 
 vi.mock("../soundUtils");
 vi.mock("../useAudioContext");
+// Probes, so the tests can say whether the ringing pieces are on screen at all rather than
+// guessing from what they happen to render.
+vi.mock("./RingingAudioRenderer", () => ({
+  RingingAudioRenderer: vi.fn(() => null),
+}));
+vi.mock("../tile/RingingStatus", () => ({
+  RingingStatus: vi.fn(() => null),
+}));
 // Partial mock: everything else in the module stays real, and so does the parsing, so every
 // test that came before this sees exactly what it saw. Only the dialler test swaps the answer.
 const urlParams = vi.hoisted(() => ({
@@ -119,6 +131,8 @@ beforeEach(() => {
   useRoomEncryptionSystemMock.mockReturnValue({ kind: E2eeType.NONE });
 });
 interface CreateInCallViewArgs {
+  /** Who is in the call. Leave the other party out to have someone left to ring. */
+  rtcMemberships?: CallMembership[];
   mediaDevices?: ECMediaDevices;
   callViewModelOptions?: Partial<CallViewModelOptions>;
   /** If true, wraps the rendered tree in an AppBar provider */
@@ -140,7 +154,7 @@ function createInCallView(args: CreateInCallViewArgs = {}): RenderResult & {
   );
   const { vm, footerVm, rtcSession } = getBasicCallViewModelEnvironment(
     [local, alice],
-    undefined,
+    args.rtcMemberships,
     mediaDevices,
     args.callViewModelOptions,
   );
@@ -243,23 +257,49 @@ describe("InCallView", () => {
   });
 });
 
-describe("ringing sounds", () => {
-  // Every audio renderer on the screen asks for a context, and each says whether it should be
-  // silent. We only care that one of them is silenced, and which one is not something the call
-  // screen exposes by name.
-  const mutedFlags = (): unknown[] =>
-    (useAudioContext as MockedFunction<typeof useAudioContext>).mock.calls.map(
-      ([args]) => args.muted,
-    );
-
-  it("silences Element Call's ringtone when the dialler is on, since it rings for itself", () => {
+describe("ringing while the dialler is up", () => {
+  it("leaves Element Call's ringtone out, since the dialler rings for itself", () => {
     urlParams.answer = () => ({ ...urlParams.real(), phoneVoiceLayout: true });
     createInCallView();
-    expect(mutedFlags()).toContain(true);
+    expect(RingingAudioRenderer).not.toHaveBeenCalled();
   });
 
-  it("leaves the ringtone alone without the dialler", () => {
+  // A ring has to actually be going out for the status to have anything to say, and the app bar
+  // has to be the place it would say it, or the test passes for the wrong reason.
+  const ringing = (dialler: boolean): void => {
+    urlParams.answer = () => ({
+      ...urlParams.real(),
+      header: HeaderStyle.AppBar,
+      ...(dialler ? { phoneVoiceLayout: true } : {}),
+    });
+    const { rtcSession } = createInCallView({
+      // Only we are in the call, so the other party is still being rung.
+      rtcMemberships: [localRtcMember as unknown as CallMembership],
+      withAppBar: true,
+      callViewModelOptions: { waitForCallPickup: true },
+    });
+    act(() => {
+      rtcSession.emit(MatrixRTCSessionEvent.DidSendCallNotification, {
+        event_id: "$notif1",
+        lifetime: 30,
+        notification_type: "ring",
+        sender: local.userId,
+      } as never);
+    });
+  };
+
+  it("keeps its ringing status to itself, since its own footer says as much", () => {
+    ringing(true);
+    expect(RingingStatus).not.toHaveBeenCalled();
+  });
+
+  it("shows the ringing status once there is no dialler to say it instead", () => {
+    ringing(false);
+    expect(RingingStatus).toHaveBeenCalled();
+  });
+
+  it("hands both back when there is no dialler, as on a call with the camera on", () => {
     createInCallView();
-    expect(mutedFlags()).not.toContain(true);
+    expect(RingingAudioRenderer).toHaveBeenCalled();
   });
 });

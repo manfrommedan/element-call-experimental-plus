@@ -337,10 +337,13 @@ export const InCallView: FC<InCallViewProps> = ({
   );
 
   useAppBarHidden(!showHeader);
+  // Suppressed while the dialler is up, which says "calling" in its own words, and shown again
+  // the moment it is not: turning the camera on mid-ring leaves the ordinary call screen, and
+  // that screen has nothing else to say the call has yet to be answered.
   useAppBarSubtitle(
-    ringingVm && vm.ringingStatusLocation === "app_bar" && (
-      <RingingStatus vm={ringingVm} />
-    ),
+    ringingVm &&
+      !phoneVoiceMode &&
+      vm.ringingStatusLocation === "app_bar" && <RingingStatus vm={ringingVm} />,
   );
 
   let header: ReactNode = null;
@@ -437,7 +440,8 @@ export const InCallView: FC<InCallViewProps> = ({
         );
         const showSpeakingIndicators = useBehavior(vm.showSpeakingIndicators$);
         const showNameTags = useBehavior(vm.showNameTags$);
-        const showRingingStatus = vm.ringingStatusLocation === "tile";
+        const showRingingStatus =
+          vm.ringingStatusLocation === "tile" && !phoneVoiceMode;
         const showOutline = useBehavior(
           model instanceof GridTileViewModel
             ? model.showOutline$
@@ -477,7 +481,9 @@ export const InCallView: FC<InCallViewProps> = ({
           />
         );
       },
-    [vm, openProfile, contentObscured],
+    // phoneVoiceMode because the ringing status is the dialler's to show or withhold, and the
+    // tile has to be rebuilt when that changes rather than keeping the answer it was born with.
+    [vm, openProfile, contentObscured, phoneVoiceMode],
   );
 
   const layouts = useMemo(() => {
@@ -508,7 +514,9 @@ export const InCallView: FC<InCallViewProps> = ({
           targetHeight={gridBounds.height}
           showIndicators={false}
           showNameTags={showNameTags}
-          showRingingStatus={vm.ringingStatusLocation === "tile"}
+          showRingingStatus={
+            vm.ringingStatusLocation === "tile" && !phoneVoiceMode
+          }
           focusable={!contentObscured}
           aria-hidden={contentObscured}
         />
@@ -631,12 +639,13 @@ export const InCallView: FC<InCallViewProps> = ({
       {renderContent()}
       <CallEventAudioRenderer vm={vm} muted={muteAllAudio} />
       <ReactionsAudioRenderer vm={vm} muted={muteAllAudio} />
-      {/* The dialler plays a ringback of its own, the two-second cadence of a telephone line.
-          Element Call's ringtone on top of it is two calls ringing at once. */}
-      <RingingAudioRenderer
-        vm={ringingVm}
-        muted={muteAllAudio || phoneVoiceMode}
-      />
+      {/* Left out entirely while the dialler is up, rather than muted: the dialler plays a
+          ringback of its own and two at once is two calls ringing. Muting would also be a
+          one-way door, since a muted renderer never builds its audio and does not build one
+          on unmuting either, so turning the camera on mid-ring would leave silence. */}
+      {!phoneVoiceMode && (
+        <RingingAudioRenderer vm={ringingVm} muted={muteAllAudio} />
+      )}
       {reconnectingToast}
       {earpieceOverlay}
       <ReactionsOverlay vm={vm} />
