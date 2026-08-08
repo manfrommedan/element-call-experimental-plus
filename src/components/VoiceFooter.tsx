@@ -13,7 +13,6 @@ import {
   useMemo,
   useState,
 } from "react";
-import classNames from "classnames";
 import { useObservableEagerState } from "observable-hooks";
 import { type TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -67,8 +66,6 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const participantCount = useObservableEagerState(vm.participantCount$);
   const ringingVm = useObservableEagerState(vm.ringingVm$);
   const ringing = ringingVm !== null;
-  const isWaitingForRemote = participantCount <= 1;
-  const elapsedSeconds = useElapsedSeconds(!isWaitingForRemote);
 
   const mediaDevices = useMediaDevices();
   const availableOutputs = useObservableEagerState(
@@ -170,46 +167,64 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
 
   return (
     <>
-      <div
-        className={classNames(styles.timer, {
-          [styles.timerStatus]: isWaitingForRemote,
-        })}
-        aria-live="polite"
-      >
-        {isWaitingForRemote
-          ? t("voice_layout.phase_ringing")
-          : formatTimer(elapsedSeconds)}
-      </div>
       <div className={styles.footer}>
+        {/* All four controls stay on one row. Hanging up deserves to stand apart, but a row of
+        its own costs a whole band of height, and on a short screen or in landscape that is the
+        band the avatar needs. It reads as the odd one out by colour instead. */}
         <div className={styles.row}>
-          <MicButton
-            size="lg"
-            enabled={audioEnabled}
-            onClick={onMicClick}
-            disabled={toggleAudio === null}
-          />
-          <Tooltip
-            label={
-              activeOutput?.kindLabel ??
-              t("voice_layout.audio_output", "Audio output")
-            }
-          >
-            <CpdButton
-              iconOnly
+          <div className={styles.control}>
+            <MicButton
               size="lg"
-              kind={isAlternateOutputActive ? "primary" : "secondary"}
-              Icon={audioOutputIcon}
-              onClick={onAudioOutputClick}
-              disabled={outputs.length < 2}
+              enabled={audioEnabled}
+              onClick={onMicClick}
+              disabled={toggleAudio === null}
             />
-          </Tooltip>
-          <VideoButton
-            size="lg"
-            enabled={videoActive}
-            onClick={onVideoClick}
-            disabled={toggleVideo === null}
-          />
-          <EndCallButton size="lg" onClick={onHangupClick} />
+            <span className={styles.label}>
+              {audioEnabled
+                ? t("voice_layout.microphone_on")
+                : t("voice_layout.microphone_off")}
+            </span>
+          </div>
+          <div className={styles.control}>
+            <Tooltip
+              label={
+                activeOutput?.kindLabel ??
+                t("voice_layout.audio_output", "Audio output")
+              }
+            >
+              <CpdButton
+                iconOnly
+                size="lg"
+                kind={isAlternateOutputActive ? "primary" : "secondary"}
+                Icon={audioOutputIcon}
+                onClick={onAudioOutputClick}
+                disabled={outputs.length < 2}
+              />
+            </Tooltip>
+            {/* The label answers "where is the sound going", which the icon alone never did. */}
+            <span className={styles.label}>
+              {activeOutput?.kindLabel ?? t("voice_layout.audio_output")}
+            </span>
+          </div>
+          <div className={styles.control}>
+            <VideoButton
+              size="lg"
+              enabled={videoActive}
+              onClick={onVideoClick}
+              disabled={toggleVideo === null}
+            />
+            <span className={styles.label}>
+              {videoActive
+                ? t("voice_layout.video_on")
+                : t("voice_layout.video_off")}
+            </span>
+          </div>
+          <div className={styles.control}>
+            <EndCallButton size="lg" onClick={onHangupClick} />
+            <span className={styles.label}>
+              {t("voice_layout.hangup")}
+            </span>
+          </div>
         </div>
         <AudioOutputPicker
           open={pickerOpen}
@@ -367,30 +382,6 @@ function haptic(kind: "tap" | "hangup" | "connect"): void {
       navigator.vibrate(HAPTIC_CONNECT_MS);
       break;
   }
-}
-
-function useElapsedSeconds(active: boolean): number {
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    if (!active) return undefined;
-    setStartedAt((prev) => prev ?? Date.now());
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
-    return (): void => clearInterval(id);
-  }, [active]);
-  if (startedAt === null) return 0;
-  return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
-}
-
-function formatTimer(totalSeconds: number): string {
-  const safe = Math.max(0, totalSeconds);
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-  const pad = (n: number): string => String(n).padStart(2, "0");
-  return hours > 0
-    ? `${hours}:${pad(minutes)}:${pad(seconds)}`
-    : `${minutes}:${pad(seconds)}`;
 }
 
 // Surfaces a fromWidget message so the embedding host (Element X) can

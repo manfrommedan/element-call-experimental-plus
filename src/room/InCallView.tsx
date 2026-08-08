@@ -83,6 +83,7 @@ import { type Layout } from "../state/layout-types.ts";
 import { ObservableScope } from "../state/ObservableScope.ts";
 import { CallFooter, type FooterSnapshot } from "../components/CallFooter.tsx";
 import { VoiceFooter } from "../components/VoiceFooter.tsx";
+import { VoiceIdentity } from "../components/VoiceIdentity.tsx";
 import { SettingsIconButton } from "../button/Button.tsx";
 import { createCallFooterViewModel } from "../components/CallFooterViewModel.tsx";
 import { type ViewModel } from "../state/ViewModel.ts";
@@ -617,6 +618,14 @@ export const InCallView: FC<InCallViewProps> = ({
       onPointerOut={onPointerOut}
     >
       {header}
+      {phoneVoiceMode && (
+        <VoiceIdentity
+          vm={vm}
+          name={matrixInfo.roomName}
+          colourId={matrixInfo.roomId}
+          hidden={!showFooter}
+        />
+      )}
       {audioParticipants.map(({ livekitRoom, url, participants }) => (
         <LivekitRoomAudioRenderer
           key={url}
