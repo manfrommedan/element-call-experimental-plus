@@ -1330,6 +1330,12 @@ export function createCallViewModel$(
       ringing === null ? media : { ...media, spotlight: [ringing] },
   );
 
+  // The dialler's answer for a call that is not a pair: whoever is speaking, alone on the
+  // screen, without the picture-in-picture of yourself that a voice call has no use for.
+  const phoneVoiceSpeakerMedia$ = spotlightExpandedLayoutMedia$(true).pipe(
+    map((media) => (media.pip === undefined ? media : { ...media, pip: undefined })),
+  );
+
   // A switch of our own for the dialler, because upstream's cannot serve here: its natural
   // value in a flat window is already "grid", so merely turning the phone would engage the
   // tiles unasked. A call of two stays a dialler until you say otherwise, on its side as much
@@ -1353,25 +1359,33 @@ export function createCallViewModel$(
       phoneVoiceMode$,
       phoneVoiceTiles$,
       phoneVoiceTilesMedia$,
+      phoneVoiceSpeakerMedia$,
       windowMode$,
     ]).pipe(
-      map(([media, phoneVoice, showTiles, tiles, windowMode]) => {
+      map(([media, phoneVoice, showTiles, tiles, speakerOnly, windowMode]) => {
         if (!phoneVoice) return media;
+        // Tiles are a landscape affair, and even there only when asked for. Held upright the
+        // switch is not offered and a choice made on its side is not honoured either: turning
+        // back upright must not leave tiles on screen with nothing to undo them.
+        const sideways = windowMode === "flat";
+        if (sideways && showTiles) return tiles;
         switch (media.type) {
           // Voice calls always use the phone-voice layout, including while
           // ringing: the grid tile accepts RingingMediaViewModel, so no
           // special-casing of the ringing spotlight is needed.
           case "one-on-one-desktop":
           case "one-on-one-mobile":
-            // Tiles are a landscape affair. Held upright there is no room for two of you, so
-            // the switch is not offered and a choice made on its side is not honoured either:
-            // turning back upright must not leave tiles on screen with nothing to undo them.
-            if (showTiles && windowMode === "flat") return tiles;
             return {
               type: "phone-voice",
               edgeToEdge: media.edgeToEdge,
               spotlight: media.spotlight,
             };
+          // What a flat window gives when the call is not a pair: the other party has not
+          // picked up yet and the ring has lapsed, or there are three of you. Upstream's answer
+          // there is the tiles, which is the very thing a turn must not bring on by itself, so
+          // the speaker gets the screen instead until the switch says otherwise.
+          case "spotlight-landscape":
+            return sideways ? speakerOnly : media;
           case "spotlight-expanded":
             return media.pip === undefined ? media : { ...media, pip: undefined };
           default:
@@ -1901,17 +1915,12 @@ export function createCallViewModel$(
     spotlightExpanded$: spotlightExpanded$,
     toggleSpotlightExpanded$: toggleSpotlightExpanded$,
     layoutSwitchVm$: scope.behavior(
-      combineLatest([
-        showLayoutSwitch$,
-        phoneVoiceMode$,
-        windowMode$,
-        oneOnOneLayoutMedia$,
-      ]).pipe(
-        // A dialler on its side gets ours, which starts on the dialler and offers the tiles.
-        // Everything else keeps upstream's, so a call of three or more in landscape behaves
-        // exactly as it does without the flag.
-        map(([show, phoneVoice, windowMode, oneOnOne]) =>
-          phoneVoice && windowMode === "flat" && oneOnOne !== null
+      combineLatest([showLayoutSwitch$, phoneVoiceMode$, windowMode$]).pipe(
+        // A dialler on its side gets ours, which starts where the call already is and offers
+        // the tiles. Everything else keeps upstream's, so a call behaves exactly as it does
+        // without the flag.
+        map(([show, phoneVoice, windowMode]) =>
+          phoneVoice && windowMode === "flat"
             ? phoneVoiceLayoutSwitchVm
             : show
               ? layoutSwitchVm

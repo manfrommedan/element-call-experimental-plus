@@ -51,13 +51,15 @@ vi.mock("./localMember/LocalTransport", async (importOriginal) => ({
 import { initializeWidget } from "../../widget";
 initializeWidget();
 
-import { withTestScheduler } from "../../utils/test";
+import { mockRemoteParticipant, withTestScheduler } from "../../utils/test";
 import {
   alice,
   aliceId,
   aliceParticipant,
   aliceRtcMember,
   aliceUserId,
+  bobId,
+  bobRtcMember,
   local,
   localId,
   localRtcMember,
@@ -227,6 +229,42 @@ describe.each([
             a: "phone-voice",
             // ":0" is the tile index each media view model carries.
             b: `big: ${aliceId}:0 | column: ${localId}:0`,
+          });
+        },
+      );
+    });
+  });
+
+  test("a call of three on its side still starts on the speaker, not the tiles", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    withTestScheduler(({ behavior, schedule, expectObservable }) => {
+      withCallViewModel(
+        {
+          remoteParticipants$: constant([
+            aliceParticipant,
+            mockRemoteParticipant({ identity: bobId }),
+          ]),
+          rtcMembers$: constant([localRtcMember, aliceRtcMember, bobRtcMember]),
+          windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
+        },
+        (vm) => {
+          schedule("-t", {
+            t: () => {
+              vm.layoutSwitchVm$.value!.setLayout("grid");
+            },
+          });
+
+          // Element Call would hand a flat window its tiles here, since this is no longer a pair
+          // and its own switch reads "grid" by default. That is the very thing a turn must not
+          // decide, so the dialler holds the speaker on screen until the switch is pressed.
+          expectObservable(
+            vm.layout$.pipe(
+              map((l) => l.type),
+              distinctUntilChanged(),
+            ),
+          ).toBe("ab", {
+            a: "spotlight-expanded",
+            b: "spotlight-landscape",
           });
         },
       );

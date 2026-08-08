@@ -631,7 +631,12 @@ export const InCallView: FC<InCallViewProps> = ({
       {renderContent()}
       <CallEventAudioRenderer vm={vm} muted={muteAllAudio} />
       <ReactionsAudioRenderer vm={vm} muted={muteAllAudio} />
-      <RingingAudioRenderer vm={ringingVm} muted={muteAllAudio} />
+      {/* The dialler plays a ringback of its own, the two-second cadence of a telephone line.
+          Element Call's ringtone on top of it is two calls ringing at once. */}
+      <RingingAudioRenderer
+        vm={ringingVm}
+        muted={muteAllAudio || phoneVoiceMode}
+      />
       {reconnectingToast}
       {earpieceOverlay}
       <ReactionsOverlay vm={vm} />
