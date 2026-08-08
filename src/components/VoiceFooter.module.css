@@ -20,6 +20,10 @@ Please see LICENSE in the repository root for full details.
   padding-block: var(--cpd-space-10x)
     calc(env(safe-area-inset-bottom) + var(--cpd-space-10x));
   inline-size: 100%;
+  /* Element Call has no global border-box, so a width of 100% with side padding made
+     this wider than the screen. The overflow went to one side and took the row with
+     it, which is why the controls sat right of centre rather than in the middle. */
+  box-sizing: border-box;
   background: linear-gradient(
     180deg,
     rgba(0, 0, 0, 0) 0%,
@@ -208,7 +212,10 @@ Please see LICENSE in the repository root for full details.
   background: transparent;
   border: 0;
   inline-size: 100%;
-  padding: 14px 8px;
+  /* Same trap as the footer above: full width plus padding without border-box puts
+     the row wider than the sheet holding it. */
+  box-sizing: border-box;
+  padding: var(--cpd-space-3x) var(--cpd-space-2x);
   display: flex;
   align-items: center;
   gap: 16px;
