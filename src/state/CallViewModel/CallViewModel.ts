@@ -1315,13 +1315,21 @@ export function createCallViewModel$(
       }),
     );
 
-  // When phoneVoiceMode$ is on: 1:1 routes through PhoneVoiceLayout (its own
-  // layout slot, no pip), and any other layout that still has a floating pip
-  // drops it so the VoiceFooter is the only local-presence affordance.
+  // With phoneVoiceMode$ on, a one-to-one call is drawn as a dialler rather than as the
+  // usual pair of tiles. That is a choice, so the layout switch decides it: on "grid" the
+  // ordinary tiles come through and you see both of you, on "spotlight" the dialler does.
+  // Upstream hides that switch in a one-to-one call because there is nothing to choose
+  // between; here there is, which is why it stays.
   const layoutMedia$ = scope.behavior<LayoutMedia>(
-    combineLatest([rawLayoutMedia$, phoneVoiceMode$]).pipe(
-      map(([media, phoneVoice]) => {
+    combineLatest([
+      rawLayoutMedia$,
+      phoneVoiceMode$,
+      layoutSwitchVm.layout$,
+      gridLayoutMedia$,
+    ]).pipe(
+      map(([media, phoneVoice, layoutMode, grid]) => {
         if (!phoneVoice) return media;
+        if (layoutMode === "grid") return grid;
         switch (media.type) {
           // Voice calls always use the phone-voice layout, including while
           // ringing: the grid tile accepts RingingMediaViewModel, so no
@@ -1862,7 +1870,11 @@ export function createCallViewModel$(
     spotlightExpanded$: spotlightExpanded$,
     toggleSpotlightExpanded$: toggleSpotlightExpanded$,
     layoutSwitchVm$: scope.behavior(
-      showLayoutSwitch$.pipe(map((show) => (show ? layoutSwitchVm : null))),
+      combineLatest([showLayoutSwitch$, phoneVoiceMode$]).pipe(
+        // Offered throughout a phone-voice call: it chooses between the dialler and the
+        // tiles, which is a choice that exists whoever else is on the call.
+        map(([show, phoneVoice]) => (show || phoneVoice ? layoutSwitchVm : null)),
+      ),
     ),
     layout$: layout$,
     localMatrixLivekitMember$,

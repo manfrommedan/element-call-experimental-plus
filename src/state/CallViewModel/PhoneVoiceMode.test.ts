@@ -11,7 +11,7 @@ Please see LICENSE in the repository root for full details.
 // into the rest of the suite — vitest scopes vi.mock() per test module.
 
 import { afterEach, describe, test, vi } from "vitest";
-import { NEVER, type Observable } from "rxjs";
+import { map, NEVER, type Observable } from "rxjs";
 import { type LivekitTransport } from "matrix-js-sdk/lib/matrixrtc";
 import type * as UrlParamsModule from "../../UrlParams";
 
@@ -91,6 +91,25 @@ describe.each([
           // mockMuteStates() defaults videoEnabled to false, so phone-voice
           // mode is initially active.
           expectObservable(vm.phoneVoiceMode$).toBe("a", { a: true });
+        },
+      );
+    });
+  });
+
+  test("the layout switch is offered throughout a phone-voice call", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    withTestScheduler(({ expectObservable }) => {
+      withCallViewModel(
+        {
+          remoteParticipants$: constant([aliceParticipant]),
+          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+        },
+        (vm) => {
+          // Upstream withholds it in a two-person call because the layout never changes.
+          // Here it does: the switch is what chooses the dialler over the tiles.
+          expectObservable(
+            vm.layoutSwitchVm$.pipe(map((switchVm) => switchVm !== null)),
+          ).toBe("a", { a: true });
         },
       );
     });
