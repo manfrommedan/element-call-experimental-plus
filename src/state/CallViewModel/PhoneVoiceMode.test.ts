@@ -105,7 +105,11 @@ function places$(layout$: Observable<Layout>): Observable<string> {
                 .map((vm) => vm.id)
                 .join(", ")}`,
           )
-        : of(l.type),
+        : l.type === "pip"
+          ? l.spotlight.media$.pipe(
+              map((media) => `pip: ${media.map((vm) => vm.id).join(", ")}`),
+            )
+          : of(l.type),
     ),
     // Identical repeats within a frame are combineLatest catching up, not anything that
     // reaches the screen.
@@ -382,6 +386,36 @@ describe.each([
           // rule of always keeping hang-up within reach.
           expectObservable(vm.showFooter$).toBe("a", { a: false });
         },
+      );
+    });
+  });
+
+  test("the floating window shows who is being called, not yourself", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    withTestScheduler(({ behavior, schedule, expectObservable }) => {
+      withCallViewModel(
+        {
+          roomMembers: [alice, local],
+          windowSize$: behavior("a", { a: { width: 300, height: 200 } }),
+        },
+        (vm, rtcSession) => {
+          schedule("n", {
+            n: () => {
+              rtcSession.emit(
+                MatrixRTCSessionEvent.DidSendCallNotification,
+                mockRingEvent("$notif1", 30),
+              );
+            },
+          });
+
+          expectObservable(
+            places$(vm.layout$).pipe(skipWhile((v) => !v.startsWith("pip:"))),
+          ).toBe("(ab)", {
+            a: `pip: ${localId}:0`,
+            b: `pip: ringing:${aliceUserId}`,
+          });
+        },
+        { waitForCallPickup: true },
       );
     });
   });

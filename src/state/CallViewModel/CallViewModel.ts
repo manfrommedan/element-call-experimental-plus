@@ -1328,6 +1328,15 @@ export function createCallViewModel$(
       ringing === null ? media : { ...media, spotlight: [ringing] },
   );
 
+  // While ringing, the dialler centres your own avatar rather than a room member picked at
+  // random, and spotlight$ carries that choice into the floating window, where it reads as a call
+  // with yourself. The window is meant to say who you are calling.
+  const phoneVoicePipMedia$ = combineLatest(
+    [pipLayoutMedia$, ringingMedia$],
+    (media, ringing) =>
+      ringing === null || media.type !== "pip" ? media : { ...media, spotlight: [ringing] },
+  );
+
   // The dialler's answer for a call that is not a pair: whoever is speaking, alone on the
   // screen, without the picture-in-picture of yourself that a voice call has no use for.
   const phoneVoiceSpeakerMedia$ = spotlightExpandedLayoutMedia$(true).pipe(
@@ -1356,9 +1365,10 @@ export function createCallViewModel$(
     phoneVoiceTiles$,
     phoneVoiceTilesMedia$,
     phoneVoiceSpeakerMedia$,
+    phoneVoicePipMedia$,
     windowMode$,
   ]).pipe(
-    map(([media, showTiles, tiles, speakerOnly, windowMode]): LayoutMedia => {
+    map(([media, showTiles, tiles, speakerOnly, pip, windowMode]): LayoutMedia => {
       // Tiles are a landscape affair, and even there only when asked for. Held upright the
       // switch is not offered and a choice made on its side is not honoured either: turning
       // back upright must not leave tiles on screen with nothing to undo them.
@@ -1387,6 +1397,8 @@ export function createCallViewModel$(
           return media.grid.length <= 1 ? speakerOnly : media;
         case "spotlight-expanded":
           return media.pip === undefined ? media : { ...media, pip: undefined };
+        case "pip":
+          return pip;
         default:
           return media;
       }
