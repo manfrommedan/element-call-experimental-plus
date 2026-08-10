@@ -997,20 +997,35 @@ export function createCallViewModel$(
     pickupState$: constant("ringing"),
   });
 
+  /**
+   * What the dialler puts on screen while it waits for an answer, or null once there is somebody
+   * to show. A call placed to a room shows the room: the ringing media names whoever comes first
+   * in a Map of members, which in a room of several is nobody in particular, and your own avatar
+   * says even less.
+   */
+  const phoneVoiceWaitingMedia$ = scope.behavior<RingingMediaViewModel | null>(
+    combineLatest(
+      [phoneVoiceMode$, userMedia$, ringingMedia$, matrixRoomMembers$],
+      (phoneVoice, userMedia, ringingMedia, members) => {
+        if (!phoneVoice) return null;
+        if (userMedia.some((m) => m.type === "user" && !m.local)) return null;
+        // The whole waiting period is decided here, rather than handing back to the ordinary
+        // spotlight once ringing starts: the two would disagree for a frame, and that frame
+        // showed your own avatar.
+        const isPair = members.size <= 2;
+        return isPair && ringingMedia !== null ? ringingMedia : roomMedia;
+      },
+    ),
+  );
+
   const spotlightAndPip$ = scope.behavior<{
     spotlight: MediaViewModel[];
     pip$: Observable<UserMediaViewModel | undefined>;
   }>(
-    combineLatest([ringingMedia$, phoneVoiceMode$, userMedia$]).pipe(
-      switchMap(([ringingMedia, phoneVoice, userMedia]) => {
-        // A dialler waiting for an answer shows who is being called, and there is nobody to show
-        // when a room is called rather than a person, so it shows the room. Upstream would put a
-        // room member here, chosen by the order of a Map, and your own avatar is no better: a call
-        // is with someone else.
-        if (phoneVoice && ringingMedia === null) {
-          const hasRemote = userMedia.some((m) => m.type === "user" && !m.local);
-          if (!hasRemote) return of({ spotlight: [roomMedia], pip$: of(undefined) });
-        }
+    combineLatest([ringingMedia$, phoneVoiceWaitingMedia$]).pipe(
+      switchMap(([ringingMedia, waitingMedia]) => {
+        if (waitingMedia !== null)
+          return of({ spotlight: [waitingMedia], pip$: of(undefined) });
         if (ringingMedia !== null)
           return of({ spotlight: [ringingMedia], pip$: localUserMediaForPip$ });
 
@@ -1363,9 +1378,17 @@ export function createCallViewModel$(
     phoneVoiceTiles$,
     phoneVoiceTilesMedia$,
     phoneVoiceSpeakerMedia$,
+    phoneVoiceWaitingMedia$,
     windowMode$,
   ]).pipe(
-    map(([media, showTiles, tiles, speakerOnly, windowMode]): LayoutMedia => {
+    map(([
+      media,
+      showTiles,
+      tiles,
+      speakerOnly,
+      waiting,
+      windowMode,
+    ]): LayoutMedia => {
       // Tiles are a landscape affair, and even there only when asked for. Held upright the
       // switch is not offered and a choice made on its side is not honoured either: turning
       // back upright must not leave tiles on screen with nothing to undo them.
@@ -1380,7 +1403,9 @@ export function createCallViewModel$(
           return {
             type: "phone-voice",
             edgeToEdge: media.edgeToEdge,
-            spotlight: media.spotlight,
+            // Ringing a room makes this layout a pair of you and a member picked at random, so
+            // the room takes the tile until somebody actually answers.
+            spotlight: waiting ?? media.spotlight,
           };
         // What a flat window gives when the call is not a pair: the other party has not picked
         // up yet and the ring has lapsed, or there are three of you. Upstream's answer there is

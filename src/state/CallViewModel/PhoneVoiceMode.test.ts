@@ -63,6 +63,7 @@ import { mockRemoteParticipant, withTestScheduler } from "../../utils/test";
 import {
   alice,
   aliceId,
+  bob,
   aliceParticipant,
   aliceRtcMember,
   aliceUserId,
@@ -94,6 +95,22 @@ function mockRingEvent(
 
 // Who ends up where, as a line of text: marble assertions compare by deep equality, and a
 // string says which tile held whom more plainly than a nest of arrays does.
+/** Who is in the big tile, whichever layout is drawing it. */
+function spotlightIds$(layout$: Observable<Layout>): Observable<string> {
+  return layout$.pipe(
+    switchMap((l) =>
+      l.type === "phone-voice" ||
+      l.type === "spotlight-expanded" ||
+      l.type === "spotlight-landscape"
+        ? l.spotlight.media$.pipe(
+            map((media) => media.map((vm) => vm.id).join(", ")),
+          )
+        : of(l.type),
+    ),
+    distinctUntilChanged(),
+  );
+}
+
 function places$(layout$: Observable<Layout>): Observable<string> {
   return layout$.pipe(
     switchMap((l) =>
@@ -431,19 +448,41 @@ describe.each([
           windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
         },
         (vm) => {
-          expectObservable(
-            vm.layout$.pipe(
-              switchMap((l) =>
-                l.type === "spotlight-expanded"
-                  ? l.spotlight.media$.pipe(
-                      map((media) => media.map((vm) => vm.id).join(", ")),
-                    )
-                  : of(l.type),
-              ),
-              distinctUntilChanged(),
-            ),
-          ).toBe("a", { a: "room:!room:example.org" });
+          expectObservable(spotlightIds$(vm.layout$)).toBe("a", {
+            a: "room:!room:example.org",
+          });
         },
+      );
+    });
+  });
+
+  test("ringing a room of several shows the room, not a member picked at random", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    withTestScheduler(({ behavior, schedule, expectObservable }) => {
+      withCallViewModel(
+        {
+          // Three people in the room, none of them in the call yet. Element Call rings whoever
+          // comes first in its map of members, which is no one in particular.
+          roomMembers: [alice, bob, local],
+          remoteParticipants$: constant([]),
+          rtcMembers$: constant([localRtcMember]),
+          windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
+        },
+        (vm, rtcSession) => {
+          schedule("n", {
+            n: () => {
+              rtcSession.emit(
+                MatrixRTCSessionEvent.DidSendCallNotification,
+                mockRingEvent("$notif1", 30),
+              );
+            },
+          });
+
+          expectObservable(spotlightIds$(vm.layout$)).toBe("a", {
+            a: "room:!room:example.org",
+          });
+        },
+        { waitForCallPickup: true },
       );
     });
   });
