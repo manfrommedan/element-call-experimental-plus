@@ -390,7 +390,7 @@ describe.each([
     });
   });
 
-  test("the floating window shows who is being called, not yourself", () => {
+  test("the floating window shows the room, then whoever is being called", () => {
     getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
     withTestScheduler(({ behavior, schedule, expectObservable }) => {
       withCallViewModel(
@@ -411,11 +411,39 @@ describe.each([
           expectObservable(
             places$(vm.layout$).pipe(skipWhile((v) => !v.startsWith("pip:"))),
           ).toBe("(ab)", {
-            a: `pip: ${localId}:0`,
+            a: "pip: room:!room:example.org",
             b: `pip: ringing:${aliceUserId}`,
           });
         },
         { waitForCallPickup: true },
+      );
+    });
+  });
+
+  test("calling a room shows the room, not your own face", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    withTestScheduler(({ behavior, expectObservable }) => {
+      withCallViewModel(
+        {
+          // In the call on your own, as when a room is called and nobody has joined yet.
+          remoteParticipants$: constant([]),
+          rtcMembers$: constant([localRtcMember]),
+          windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
+        },
+        (vm) => {
+          expectObservable(
+            vm.layout$.pipe(
+              switchMap((l) =>
+                l.type === "spotlight-expanded"
+                  ? l.spotlight.media$.pipe(
+                      map((media) => media.map((vm) => vm.id).join(", ")),
+                    )
+                  : of(l.type),
+              ),
+              distinctUntilChanged(),
+            ),
+          ).toBe("a", { a: "room:!room:example.org" });
+        },
       );
     });
   });

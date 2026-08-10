@@ -986,23 +986,30 @@ export function createCallViewModel$(
     ),
   );
 
+  // The room as a face, for a call which has nobody else in it yet. Ringing media is the closest
+  // shape the tiles already know how to draw: an avatar and a name, with no stream behind them.
+  const roomMedia = createRingingMedia({
+    id: `room:${matrixRoom.roomId}`,
+    userId: matrixRoom.roomId,
+    displayName$: constant(matrixRoom.name),
+    mxcAvatarUrl$: constant(matrixRoom.getMxcAvatarUrl() ?? undefined),
+    intent: "audio",
+    pickupState$: constant("ringing"),
+  });
+
   const spotlightAndPip$ = scope.behavior<{
     spotlight: MediaViewModel[];
     pip$: Observable<UserMediaViewModel | undefined>;
   }>(
     combineLatest([ringingMedia$, phoneVoiceMode$, userMedia$]).pipe(
       switchMap(([ringingMedia, phoneVoice, userMedia]) => {
-        // While ringing and the caller is alone, show the caller's own
-        // avatar instead of a random room member (upstream picks by Map order).
-        if (phoneVoice && ringingMedia !== null) {
-          const local = userMedia.find(
-            (m): m is WrappedUserMediaViewModel & LocalUserMediaViewModel =>
-              m.type === "user" && m.local,
-          );
-          return of({
-            spotlight: local ? [local] : [],
-            pip$: of(undefined),
-          });
+        // A dialler waiting for an answer shows who is being called, and there is nobody to show
+        // when a room is called rather than a person, so it shows the room. Upstream would put a
+        // room member here, chosen by the order of a Map, and your own avatar is no better: a call
+        // is with someone else.
+        if (phoneVoice && ringingMedia === null) {
+          const hasRemote = userMedia.some((m) => m.type === "user" && !m.local);
+          if (!hasRemote) return of({ spotlight: [roomMedia], pip$: of(undefined) });
         }
         if (ringingMedia !== null)
           return of({ spotlight: [ringingMedia], pip$: localUserMediaForPip$ });
@@ -1328,15 +1335,6 @@ export function createCallViewModel$(
       ringing === null ? media : { ...media, spotlight: [ringing] },
   );
 
-  // While ringing, the dialler centres your own avatar rather than a room member picked at
-  // random, and spotlight$ carries that choice into the floating window, where it reads as a call
-  // with yourself. The window is meant to say who you are calling.
-  const phoneVoicePipMedia$ = combineLatest(
-    [pipLayoutMedia$, ringingMedia$],
-    (media, ringing) =>
-      ringing === null || media.type !== "pip" ? media : { ...media, spotlight: [ringing] },
-  );
-
   // The dialler's answer for a call that is not a pair: whoever is speaking, alone on the
   // screen, without the picture-in-picture of yourself that a voice call has no use for.
   const phoneVoiceSpeakerMedia$ = spotlightExpandedLayoutMedia$(true).pipe(
@@ -1365,10 +1363,9 @@ export function createCallViewModel$(
     phoneVoiceTiles$,
     phoneVoiceTilesMedia$,
     phoneVoiceSpeakerMedia$,
-    phoneVoicePipMedia$,
     windowMode$,
   ]).pipe(
-    map(([media, showTiles, tiles, speakerOnly, pip, windowMode]): LayoutMedia => {
+    map(([media, showTiles, tiles, speakerOnly, windowMode]): LayoutMedia => {
       // Tiles are a landscape affair, and even there only when asked for. Held upright the
       // switch is not offered and a choice made on its side is not honoured either: turning
       // back upright must not leave tiles on screen with nothing to undo them.
@@ -1397,8 +1394,6 @@ export function createCallViewModel$(
           return media.grid.length <= 1 ? speakerOnly : media;
         case "spotlight-expanded":
           return media.pip === undefined ? media : { ...media, pip: undefined };
-        case "pip":
-          return pip;
         default:
           return media;
       }

@@ -295,7 +295,13 @@ export function mockMatrixRoomMember(
 }
 
 export function mockMatrixRoom(room: Partial<MatrixRoom>): MatrixRoom {
-  return { ...mockEmitter(), ...room } as Partial<MatrixRoom> as MatrixRoom;
+  return {
+    ...mockEmitter(),
+    roomId: "!room:example.org",
+    name: "Test room",
+    getMxcAvatarUrl: () => null,
+    ...room,
+  } as Partial<MatrixRoom> as MatrixRoom;
 }
 
 export function mockLivekitRoom(
