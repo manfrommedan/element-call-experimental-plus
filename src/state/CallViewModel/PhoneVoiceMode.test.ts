@@ -29,6 +29,14 @@ vi.mock("rxjs", async (importOriginal) => ({
   // Block interval() so the marble scheduler doesn't loop forever.
   interval: (): Observable<number> => NEVER,
 }));
+const getPlatform = vi.hoisted(() => vi.fn(() => "desktop"));
+// The dialler only runs on a phone, and the floating window behaves differently there.
+vi.mock("../../Platform", () => ({
+  get platform(): string {
+    return getPlatform();
+  },
+  isFirefox: (): boolean => false,
+}));
 vi.mock("@livekit/components-core");
 vi.mock("livekit-client/e2ee-worker?worker");
 vi.mock("../../e2ee/matrixKeyProvider");
@@ -116,6 +124,7 @@ describe.each([
     // Reset the URL-params mock between tests so the flag never bleeds
     // across cases inside this file.
     getUrlParams.mockImplementation(() => ({}));
+    getPlatform.mockReturnValue("desktop");
   });
 
   test("phoneVoiceMode$ defaults to false when the URL flag is unset", () => {
@@ -351,6 +360,27 @@ describe.each([
               distinctUntilChanged(),
             ),
           ).toBe("a", { a: "grid" });
+        },
+      );
+    });
+  });
+
+  test("the floating window shows the caller alone, without the dialler controls", () => {
+    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+    getPlatform.mockReturnValue("android");
+    withTestScheduler(({ behavior, expectObservable }) => {
+      withCallViewModel(
+        {
+          remoteParticipants$: constant([aliceParticipant]),
+          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          // Small enough to be the picture-in-picture window the host puts in the corner.
+          windowSize$: behavior("a", { a: { width: 300, height: 200 } }),
+        },
+        (vm) => {
+          // A row of controls built for a phone does not fit a window this size, and taps do not
+          // reach it, so upstream shows none. The dialler has to follow that rather than its own
+          // rule of always keeping hang-up within reach.
+          expectObservable(vm.showFooter$).toBe("a", { a: false });
         },
       );
     });

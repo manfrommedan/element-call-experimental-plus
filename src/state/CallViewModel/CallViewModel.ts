@@ -1506,7 +1506,13 @@ export function createCallViewModel$(
         // The phone-voice layout is meant to read like the system dialer, where hanging up is always
         // one tap away. It inherits edgeToEdge from the one-on-one layout it replaces, which would
         // otherwise make a tap on the screen swallow the controls, and a rotation start without them.
-        if (phoneVoice) return of(true);
+        // The floating window is the exception: it is too small for a row of controls, and taps do
+        // not reach it anyway, so it shows the caller and nothing else.
+        if (phoneVoice) {
+          return windowMode$.pipe(
+            map((mode) => !(mode === "pip" && platform !== "desktop")),
+          );
+        }
 
         if (!edgeToEdge) return of(true);
 
