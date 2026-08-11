@@ -447,9 +447,20 @@ function useConnectHaptic(connected: boolean): void {
   }, [connected, hasFired]);
 }
 
-function useOutgoingRingback(active: boolean): void {
+/**
+ * Plays the ringback, handing it to the host when the host can play it as call audio.
+ */
+export function useOutgoingRingback(active: boolean): void {
+  const hostPlaysRingback = window.controls.onRingingChanged !== undefined;
+
   useEffect(() => {
-    if (!active) return undefined;
+    if (!hostPlaysRingback) return undefined;
+    window.controls.onRingingChanged?.(active);
+    return (): void => window.controls.onRingingChanged?.(false);
+  }, [active, hostPlaysRingback]);
+
+  useEffect(() => {
+    if (!active || hostPlaysRingback) return undefined;
     const AudioCtx = window.AudioContext ?? window.webkitAudioContext;
     if (!AudioCtx) return undefined;
     const ctx: AudioContext = new AudioCtx();
@@ -489,7 +500,7 @@ function useOutgoingRingback(active: boolean): void {
       if (timeoutId !== undefined) clearTimeout(timeoutId);
       void ctx.close().catch(() => undefined);
     };
-  }, [active]);
+  }, [active, hostPlaysRingback]);
 }
 
 declare global {

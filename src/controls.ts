@@ -18,6 +18,13 @@ export interface Controls {
   setAudioDevice(id: string): void;
   onAudioDeviceSelect?: (id: string) => void;
   onAudioPlaybackStarted?: () => void;
+  /**
+   * Called when a call starts and stops ringing, so that a host which can play a ringback of its
+   * own does so. Web audio plays on the media stream, which on Android means the loudspeaker until
+   * the call's own audio takes the route over; a host playing it as call audio has it right from
+   * the first pulse. When this is not implemented, the ringback is played here instead.
+   */
+  onRingingChanged?: (ringing: boolean) => void;
   setAudioEnabled(enabled: boolean): void;
   showNativeAudioDevicePicker?: () => void;
   onBackButtonPressed?: () => void;
