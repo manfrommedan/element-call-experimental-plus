@@ -8,7 +8,7 @@ import {
   isLivekitTransportConfig,
   type LivekitTransportConfig,
 } from "matrix-js-sdk/lib/matrixrtc";
-import { type MatrixClient } from "matrix-js-sdk";
+import { type IClientWellKnown, type MatrixClient } from "matrix-js-sdk";
 import { type Logger } from "matrix-js-sdk/lib/logger";
 
 import type { ResolvedConfigOptions } from "../../../config/ConfigOptions.ts";
@@ -22,21 +22,27 @@ type TransportDiscoveryClient = Pick<
 export interface RtcTransportAutoDiscoveryProps {
   client: TransportDiscoveryClient;
   resolvedConfig: ResolvedConfigOptions;
+  wellKnownFetcher: (domain: string) => Promise<IClientWellKnown>;
   logger: Logger;
 }
 
 export class RtcTransportAutoDiscovery {
   private readonly client: TransportDiscoveryClient;
   private readonly resolvedConfig: ResolvedConfigOptions;
+  private readonly wellKnownFetcher: (
+    domain: string,
+  ) => Promise<IClientWellKnown>;
   private readonly logger: Logger;
 
   public constructor({
     client,
     resolvedConfig,
+    wellKnownFetcher,
     logger,
   }: RtcTransportAutoDiscoveryProps) {
     this.client = client;
     this.resolvedConfig = resolvedConfig;
+    this.wellKnownFetcher = wellKnownFetcher;
     this.logger = logger.getChild("[RtcTransportAutoDiscovery]");
   }
 
@@ -50,7 +56,21 @@ export class RtcTransportAutoDiscovery {
       return backendTransport;
     }
 
-    // 2) app config URL
+    this.logger.info("No backend transport found, falling back to well-known");
+    // 2) .well-known transports
+    const wellKnownTransport = await this.tryWellKnownTransports();
+    if (wellKnownTransport) {
+      this.logger.info(
+        `Found .well-known transport: ${wellKnownTransport.livekit_service_url}`,
+      );
+      return wellKnownTransport;
+    }
+
+    this.logger.info(
+      "No .well-known transport found, falling back to app config",
+    );
+
+    // 3) app config URL
     const configTransport = this.tryConfigTransport();
     if (configTransport) {
       this.logger.info(
@@ -87,6 +107,60 @@ export class RtcTransportAutoDiscovery {
     } catch (ex) {
       this.logger.info(`Failed to use getRTCTransports end point: ${ex}`);
     }
+    return null;
+  }
+
+  /**
+   * Fetches the first rtc_foci from the .well-known/matrix/client.
+   *
+   * Upstream dropped this step in v0.24.0, once the getRTCTransports endpoint
+   * existed to replace it. This fork keeps it: a homeserver that advertises its
+   * SFU only in .well-known — which is every deployment that has not enabled
+   * MSC4143 — has no other way to be found, and the call fails outright.
+   *
+   * This will not throw errors, but instead just log them and return null if the expected config is not found or malformed.
+   * @private
+   */
+  private async tryWellKnownTransports(): Promise<LivekitTransportConfig | null> {
+    // Legacy MSC4143 WELL_KNOWN: used when the backend endpoint is unavailable.
+    const client = this.client;
+    const domain = client.getDomain();
+    if (domain) {
+      // we use AutoDiscovery instead of relying on the MatrixClient having already
+      // been fully configured and started
+      try {
+        const wellKnownFoci = await this.wellKnownFetcher(domain);
+
+        const fociConfig = wellKnownFoci["org.matrix.msc4143.rtc_foci"];
+        if (fociConfig) {
+          if (!Array.isArray(fociConfig)) {
+            this.logger.warn(
+              `org.matrix.msc4143.rtc_foci is not an array in .well-known`,
+            );
+          } else {
+            const first = fociConfig.find(isLivekitTransportConfig);
+            if (first) {
+              return first;
+            }
+            this.logger.info(
+              `No livekit transport found in .well-known "org.matrix.msc4143.rtc_foci"`,
+              fociConfig,
+            );
+          }
+        } else {
+          this.logger.info(
+            `No .well-known "org.matrix.msc4143.rtc_foci" found for ${domain}`,
+            wellKnownFoci,
+          );
+        }
+      } catch (ex) {
+        this.logger.info(`Failed to read .well-known for ${domain}: ${ex}`);
+      }
+    } else {
+      // Should never happen, but just in case
+      this.logger.warn(`No domain configured for client`);
+    }
+
     return null;
   }
 

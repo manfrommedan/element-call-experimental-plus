@@ -38,6 +38,26 @@ const configTransport: LivekitTransportConfig = {
   livekit_service_url: "https://config.example.org",
 };
 
+const wellKnownTransport: LivekitTransportConfig = {
+  type: "livekit",
+  livekit_service_url: "https://well-known.example.org",
+};
+
+/**
+ * A .well-known fetcher advertising the given transports under the MSC4143 key.
+ * With no arguments it advertises nothing, which is the shape the tests that
+ * predate the well-known step expect.
+ */
+function makeWellKnownFetcher(
+  transports?: Transport[],
+): RtcTransportAutoDiscoveryProps["wellKnownFetcher"] {
+  return vi
+    .fn()
+    .mockResolvedValue(
+      transports ? { "org.matrix.msc4143.rtc_foci": transports } : {},
+    );
+}
+
 function makeClient(): MockedObject<DiscoveryClient> {
   return {
     getDomain: vi.fn().mockReturnValue("example.org"),
@@ -76,6 +96,7 @@ describe("RtcTransportAutoDiscovery", () => {
       const discovery = new RtcTransportAutoDiscovery({
         client,
         resolvedConfig: makeResolvedConfig(configTransport.livekit_service_url),
+        wellKnownFetcher: makeWellKnownFetcher(),
         logger: rootLogger,
       });
 
@@ -106,6 +127,7 @@ describe("RtcTransportAutoDiscovery", () => {
     const discovery = new RtcTransportAutoDiscovery({
       client,
       resolvedConfig: makeResolvedConfig("https://config.example.org"),
+      wellKnownFetcher: makeWellKnownFetcher(),
       logger: rootLogger,
     });
 
@@ -129,6 +151,7 @@ describe("RtcTransportAutoDiscovery", () => {
       const discovery = new RtcTransportAutoDiscovery({
         client,
         resolvedConfig: makeResolvedConfig(configTransport.livekit_service_url),
+        wellKnownFetcher: makeWellKnownFetcher(),
         logger: rootLogger,
       });
 
@@ -138,6 +161,72 @@ describe("RtcTransportAutoDiscovery", () => {
     },
   );
 
+  // The .well-known step is this fork's: upstream dropped it in v0.24.0, which
+  // leaves any homeserver that advertises its SFU only there unable to call.
+  it("falls back to well-known when the backend has no livekit transport", async () => {
+    const client = makeClient();
+    client._unstable_getRTCTransports.mockResolvedValue([]);
+
+    const discovery = new RtcTransportAutoDiscovery({
+      client,
+      resolvedConfig: makeResolvedConfig(configTransport.livekit_service_url),
+      wellKnownFetcher: makeWellKnownFetcher([wellKnownTransport]),
+      logger: rootLogger,
+    });
+
+    await expect(discovery.discoverPreferredTransport()).resolves.toStrictEqual(
+      wellKnownTransport,
+    );
+  });
+
+  it("prefers the backend transport over well-known", async () => {
+    const client = makeClient();
+    client._unstable_getRTCTransports.mockResolvedValue([backendTransport]);
+
+    const discovery = new RtcTransportAutoDiscovery({
+      client,
+      resolvedConfig: makeResolvedConfig(undefined),
+      wellKnownFetcher: makeWellKnownFetcher([wellKnownTransport]),
+      logger: rootLogger,
+    });
+
+    await expect(discovery.discoverPreferredTransport()).resolves.toStrictEqual(
+      backendTransport,
+    );
+  });
+
+  it("skips a well-known that advertises no livekit transport", async () => {
+    const client = makeClient();
+    client._unstable_getRTCTransports.mockResolvedValue([]);
+
+    const discovery = new RtcTransportAutoDiscovery({
+      client,
+      resolvedConfig: makeResolvedConfig(configTransport.livekit_service_url),
+      wellKnownFetcher: makeWellKnownFetcher([{ type: "not_livekit" }]),
+      logger: rootLogger,
+    });
+
+    await expect(discovery.discoverPreferredTransport()).resolves.toStrictEqual(
+      configTransport,
+    );
+  });
+
+  it("survives a well-known that cannot be fetched", async () => {
+    const client = makeClient();
+    client._unstable_getRTCTransports.mockResolvedValue([]);
+
+    const discovery = new RtcTransportAutoDiscovery({
+      client,
+      resolvedConfig: makeResolvedConfig(configTransport.livekit_service_url),
+      wellKnownFetcher: vi.fn().mockRejectedValue(new Error("offline")),
+      logger: rootLogger,
+    });
+
+    await expect(discovery.discoverPreferredTransport()).resolves.toStrictEqual(
+      configTransport,
+    );
+  });
+
   it("returns null when backend and config are all unavailable", async () => {
     const client = makeClient();
     client._unstable_getRTCTransports.mockResolvedValue([]);
@@ -145,6 +234,7 @@ describe("RtcTransportAutoDiscovery", () => {
     const discovery = new RtcTransportAutoDiscovery({
       client,
       resolvedConfig: makeResolvedConfig(undefined),
+      wellKnownFetcher: makeWellKnownFetcher(),
       logger: rootLogger,
     });
 

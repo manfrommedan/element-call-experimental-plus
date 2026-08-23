@@ -44,6 +44,15 @@ import * as openIDSFU from "../../../livekit/openIDSFU";
 import { customLivekitUrl } from "../../../settings/settings";
 import { testJWTToken } from "../../../utils/test-fixtures";
 
+// This fork restores the .well-known transport lookup that upstream dropped in
+// v0.24.0, so discovery now consults it whenever the backend endpoint yields
+// nothing. Stub it out here: these tests are about the config and OpenID paths,
+// and a unit test has no business reaching for a real .well-known.
+vi.mock("matrix-js-sdk", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("matrix-js-sdk")>()),
+  AutoDiscovery: { getRawClientConfig: vi.fn().mockResolvedValue({}) },
+}));
+
 describe("LocalTransport", () => {
   const openIdResponse: openIDSFU.SFUConfig = {
     url: "https://lk.example.org",

@@ -10,7 +10,7 @@ import {
   isLivekitTransportConfig,
   type LivekitTransportConfig,
 } from "matrix-js-sdk/lib/matrixrtc";
-import { type MatrixClient } from "matrix-js-sdk";
+import { AutoDiscovery, type MatrixClient } from "matrix-js-sdk";
 import {
   catchError,
   combineLatest,
@@ -149,6 +149,7 @@ export const createLocalTransport$ = ({
   const transportDiscovery = new RtcTransportAutoDiscovery({
     client: client,
     resolvedConfig: Config.get(),
+    wellKnownFetcher: AutoDiscovery.getRawClientConfig.bind(AutoDiscovery),
     logger: logger,
   });
 
