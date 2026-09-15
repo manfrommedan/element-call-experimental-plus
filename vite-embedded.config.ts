@@ -5,47 +5,18 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE in the repository root for full details.
 */
 
-import { defineConfig, mergeConfig, type Plugin } from "vite";
+import { defineConfig, mergeConfig } from "vite";
 import generateFile from "vite-plugin-generate-file";
 
 import fullConfig from "./vite.config";
 
 const base = "./";
 
-// Extends phone-voice calls to 60 s ring timeout when phoneVoiceLayout=true.
-// matrix-js-sdk hardcodes the ring notification lifetime at 30 s with no config
-// hook, so we rewrite the literal at bundle time instead of carrying a patch
-// file, which pnpm refuses to pin against a git dependency.
+// matrix-js-sdk 42 honours joinConfig.notificationLifetimeMs and defaults the
+// ring notification lifetime to 90 s, which covers what the old bundle-time
+// literal rewrite stretched to 60 s for phoneVoiceLayout. The rewrite plugin
+// and the never-registered pnpm patch are gone.
 //
-// The key may or may not be quoted and the number may be minified to 3e4, so
-// the pattern covers both. closeBundle fails the build unless exactly one site
-// was rewritten: zero means the sdk moved the literal, more than one means it
-// is no longer unambiguous and the anchor needs revisiting.
-function phoneVoiceLifetimePlugin(): Plugin {
-  let hits = 0;
-  const PATTERN = /(["']?lifetime["']?\s*:\s*)(?:30000|3e4)\b/g;
-  const REPLACEMENT =
-    '$1(typeof window!=="undefined"&&window.location&&' +
-    'window.location.hash.indexOf("phoneVoiceLayout=true")!==-1?60000:30000)';
-  return {
-    name: "phone-voice-lifetime",
-    renderChunk(code: string) {
-      const matches = code.match(PATTERN);
-      if (!matches) return null;
-      hits += matches.length;
-      return { code: code.replace(PATTERN, REPLACEMENT), map: null };
-    },
-    closeBundle() {
-      if (hits !== 1) {
-        throw new Error(
-          `[phone-voice-lifetime] expected one 30s lifetime literal, found ${hits} — ` +
-            "matrix-js-sdk changed shape; revisit the transform in vite-embedded.config.ts",
-        );
-      }
-    },
-  };
-}
-
 // Config for embedded deployments (possibly hosted under a non-root path)
 export default defineConfig((env) =>
   mergeConfig(
@@ -62,7 +33,6 @@ export default defineConfig((env) =>
         sourcemap: false,
       },
       plugins: [
-        phoneVoiceLifetimePlugin(),
         generateFile([
           {
             type: "json",

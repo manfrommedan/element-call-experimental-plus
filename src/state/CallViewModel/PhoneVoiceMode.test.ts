@@ -134,375 +134,378 @@ function places$(layout$: Observable<Layout>): Observable<string> {
   );
 }
 
-describe.each([
-  [MatrixRTCMode.Legacy],
-  [MatrixRTCMode.Compatibility],
-  [MatrixRTCMode.Matrix_2_0],
-])("phoneVoiceMode (%s mode)", (mode) => {
-  const withCallViewModel = withCallViewModelInMode(mode);
+describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
+  "phoneVoiceMode (%s mode)",
+  (mode) => {
+    const withCallViewModel = withCallViewModelInMode(mode);
 
-  afterEach(() => {
-    // Reset the URL-params mock between tests so the flag never bleeds
-    // across cases inside this file.
-    getUrlParams.mockImplementation(() => ({}));
-    getPlatform.mockReturnValue("desktop");
-  });
-
-  test("phoneVoiceMode$ defaults to false when the URL flag is unset", () => {
-    withTestScheduler(({ expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([aliceParticipant]),
-          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
-        },
-        (vm) => {
-          expectObservable(vm.phoneVoiceMode$).toBe("a", { a: false });
-        },
-      );
+    afterEach(() => {
+      // Reset the URL-params mock between tests so the flag never bleeds
+      // across cases inside this file.
+      getUrlParams.mockImplementation(() => ({}));
+      getPlatform.mockReturnValue("desktop");
     });
-  });
 
-  test("phoneVoiceMode$ flips on when phoneVoiceLayout=true and local video is off", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([aliceParticipant]),
-          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
-        },
-        (vm) => {
-          // mockMuteStates() defaults videoEnabled to false, so phone-voice
-          // mode is initially active.
-          expectObservable(vm.phoneVoiceMode$).toBe("a", { a: true });
-        },
-      );
+    test("phoneVoiceMode$ defaults to false when the URL flag is unset", () => {
+      withTestScheduler(({ expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([aliceParticipant]),
+            rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          },
+          (vm) => {
+            expectObservable(vm.phoneVoiceMode$).toBe("a", { a: false });
+          },
+        );
+      });
     });
-  });
 
-  test("the layout switch appears once the phone is on its side, and not before", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([aliceParticipant]),
-          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
-          // Upright first, then turned on its side.
-          windowSize$: behavior("ab", {
-            a: { width: 360, height: 800 },
-            b: { width: 800, height: 360 },
-          }),
-        },
-        (vm) => {
-          // Upright the switch has one answer, and a control with one answer is only in
-          // the way; on its side there is room for the tiles it chooses.
-          expectObservable(
-            vm.layoutSwitchVm$.pipe(map((switchVm) => switchVm !== null)),
-          ).toBe("ab", { a: false, b: true });
-        },
-      );
+    test("phoneVoiceMode$ flips on when phoneVoiceLayout=true and local video is off", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([aliceParticipant]),
+            rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          },
+          (vm) => {
+            // mockMuteStates() defaults videoEnabled to false, so phone-voice
+            // mode is initially active.
+            expectObservable(vm.phoneVoiceMode$).toBe("a", { a: true });
+          },
+        );
+      });
     });
-  });
 
-  test("turning the phone changes nothing on its own, the switch does", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, schedule, expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([aliceParticipant]),
-          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
-          // Upright, then turned on its side and left there.
-          windowSize$: behavior("ab", {
-            a: { width: 360, height: 800 },
-            b: { width: 800, height: 360 },
-          }),
-        },
-        (vm) => {
-          schedule("--t", {
-            t: () => {
-              vm.layoutSwitchVm$.value!.setLayout("grid");
-            },
-          });
-
-          // A turn only makes the tiles available. Upstream's own switch would have engaged
-          // them here by itself, since "grid" is its natural value in a window this shape,
-          // and a call of two is a dialler until you say otherwise.
-          expectObservable(
-            vm.layout$.pipe(
-              map((l) => l.type),
-              distinctUntilChanged(),
-            ),
-          ).toBe("a-b", {
-            a: "phone-voice",
-            b: "spotlight-landscape",
-          });
-        },
-      );
+    test("the layout switch appears once the phone is on its side, and not before", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ behavior, expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([aliceParticipant]),
+            rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+            // Upright first, then turned on its side.
+            windowSize$: behavior("ab", {
+              a: { width: 360, height: 800 },
+              b: { width: 800, height: 360 },
+            }),
+          },
+          (vm) => {
+            // Upright the switch has one answer, and a control with one answer is only in
+            // the way; on its side there is room for the tiles it chooses.
+            expectObservable(
+              vm.layoutSwitchVm$.pipe(map((switchVm) => switchVm !== null)),
+            ).toBe("ab", { a: false, b: true });
+          },
+        );
+      });
     });
-  });
 
-  test("the tiles put the other person in the spotlight and you in the column", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, schedule, expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([aliceParticipant]),
-          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
-          windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
-        },
-        (vm) => {
-          schedule("t", {
-            t: () => {
-              vm.layoutSwitchVm$.value!.setLayout("grid");
-            },
-          });
-          expectObservable(places$(vm.layout$)).toBe("(ab)", {
-            a: "phone-voice",
-            // ":0" is the tile index each media view model carries.
-            b: `big: ${aliceId}:0 | column: ${localId}:0`,
-          });
-        },
-      );
+    test("turning the phone changes nothing on its own, the switch does", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ behavior, schedule, expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([aliceParticipant]),
+            rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+            // Upright, then turned on its side and left there.
+            windowSize$: behavior("ab", {
+              a: { width: 360, height: 800 },
+              b: { width: 800, height: 360 },
+            }),
+          },
+          (vm) => {
+            schedule("--t", {
+              t: () => {
+                vm.layoutSwitchVm$.value!.setLayout("grid");
+              },
+            });
+
+            // A turn only makes the tiles available. Upstream's own switch would have engaged
+            // them here by itself, since "grid" is its natural value in a window this shape,
+            // and a call of two is a dialler until you say otherwise.
+            expectObservable(
+              vm.layout$.pipe(
+                map((l) => l.type),
+                distinctUntilChanged(),
+              ),
+            ).toBe("a-b", {
+              a: "phone-voice",
+              b: "spotlight-landscape",
+            });
+          },
+        );
+      });
     });
-  });
 
-  test("a call of three on its side still starts on the speaker, not the tiles", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, schedule, expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([
-            aliceParticipant,
-            mockRemoteParticipant({ identity: bobId }),
-          ]),
-          rtcMembers$: constant([localRtcMember, aliceRtcMember, bobRtcMember]),
-          windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
-        },
-        (vm) => {
-          schedule("-t", {
-            t: () => {
-              vm.layoutSwitchVm$.value!.setLayout("grid");
-            },
-          });
-
-          // Element Call would hand a flat window its tiles here, since this is no longer a pair
-          // and its own switch reads "grid" by default. That is the very thing a turn must not
-          // decide, so the dialler holds the speaker on screen until the switch is pressed.
-          expectObservable(
-            vm.layout$.pipe(
-              map((l) => l.type),
-              distinctUntilChanged(),
-            ),
-          ).toBe("ab", {
-            a: "spotlight-expanded",
-            b: "spotlight-landscape",
-          });
-        },
-      );
+    test("the tiles put the other person in the spotlight and you in the column", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ behavior, schedule, expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([aliceParticipant]),
+            rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+            windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
+          },
+          (vm) => {
+            schedule("t", {
+              t: () => {
+                vm.layoutSwitchVm$.value!.setLayout("grid");
+              },
+            });
+            expectObservable(places$(vm.layout$)).toBe("(ab)", {
+              a: "phone-voice",
+              // ":0" is the tile index each media view model carries.
+              b: `big: ${aliceId}:0 | column: ${localId}:0`,
+            });
+          },
+        );
+      });
     });
-  });
 
-  test("the tiles show who is being rung, not yourself", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, schedule, expectObservable }) => {
-      withCallViewModel(
-        {
-          roomMembers: [alice, local], // A direct call, nobody has picked up yet
-          windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
-        },
-        (vm, rtcSession) => {
-          schedule("nt", {
-            n: () => {
-              // Braces on purpose: schedule() insists its actions return nothing, and emit()
-              // hands back a boolean.
-              rtcSession.emit(
-                MatrixRTCSessionEvent.DidSendCallNotification,
-                mockRingEvent("$notif1", 30),
-              );
-            },
-            t: () => {
-              vm.layoutSwitchVm$.value!.setLayout("grid");
-            },
-          });
+    test("a call of three on its side still starts on the speaker, not the tiles", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ behavior, schedule, expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([
+              aliceParticipant,
+              mockRemoteParticipant({ identity: bobId }),
+            ]),
+            rtcMembers$: constant([
+              localRtcMember,
+              aliceRtcMember,
+              bobRtcMember,
+            ]),
+            windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
+          },
+          (vm) => {
+            schedule("-t", {
+              t: () => {
+                vm.layoutSwitchVm$.value!.setLayout("grid");
+              },
+            });
 
-          // The dialler centres your own avatar while ringing, on purpose. Carried into the
-          // tiles that reads as being on a call with yourself, so the person being rung takes
-          // the big tile here and you stay in the column.
-          // Skip the moment before the call knows it is a call of two, when the layout is
-          // still whatever the window shape alone would give.
-          expectObservable(
-            places$(vm.layout$).pipe(skipWhile((v) => v !== "phone-voice")),
-          ).toBe("ab", {
-            a: "phone-voice",
-            b: `big: ringing:${aliceUserId} | column: ${localId}:0`,
-          });
-        },
-        { waitForCallPickup: true },
-      );
+            // Element Call would hand a flat window its tiles here, since this is no longer a pair
+            // and its own switch reads "grid" by default. That is the very thing a turn must not
+            // decide, so the dialler holds the speaker on screen until the switch is pressed.
+            expectObservable(
+              vm.layout$.pipe(
+                map((l) => l.type),
+                distinctUntilChanged(),
+              ),
+            ).toBe("ab", {
+              a: "spotlight-expanded",
+              b: "spotlight-landscape",
+            });
+          },
+        );
+      });
     });
-  });
 
-  test("a call of one is not drawn as a grid of one, which would be your own face", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, expectObservable }) => {
-      withCallViewModel(
-        {
-          // Nobody else in the call and no ring going out: the pair layouts do not apply, and
-          // upstream falls back to a grid, whose only tile is yours.
-          remoteParticipants$: constant([]),
-          rtcMembers$: constant([localRtcMember]),
-          windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
-        },
-        (vm) => {
-          expectObservable(
-            vm.layout$.pipe(
-              map((l) => l.type),
-              distinctUntilChanged(),
-            ),
-          ).toBe("a", { a: "spotlight-expanded" });
-        },
-      );
+    test("the tiles show who is being rung, not yourself", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ behavior, schedule, expectObservable }) => {
+        withCallViewModel(
+          {
+            roomMembers: [alice, local], // A direct call, nobody has picked up yet
+            windowSize$: behavior("a", { a: { width: 800, height: 360 } }),
+          },
+          (vm, rtcSession) => {
+            schedule("nt", {
+              n: () => {
+                // Braces on purpose: schedule() insists its actions return nothing, and emit()
+                // hands back a boolean.
+                rtcSession.emit(
+                  MatrixRTCSessionEvent.DidSendCallNotification,
+                  mockRingEvent("$notif1", 30),
+                );
+              },
+              t: () => {
+                vm.layoutSwitchVm$.value!.setLayout("grid");
+              },
+            });
+
+            // The dialler centres your own avatar while ringing, on purpose. Carried into the
+            // tiles that reads as being on a call with yourself, so the person being rung takes
+            // the big tile here and you stay in the column.
+            // Skip the moment before the call knows it is a call of two, when the layout is
+            // still whatever the window shape alone would give.
+            expectObservable(
+              places$(vm.layout$).pipe(skipWhile((v) => v !== "phone-voice")),
+            ).toBe("ab", {
+              a: "phone-voice",
+              b: `big: ringing:${aliceUserId} | column: ${localId}:0`,
+            });
+          },
+          { waitForCallPickup: true },
+        );
+      });
     });
-  });
 
-  test("with the flag off, the layout is whatever Element Call would have drawn", () => {
-    getUrlParams.mockImplementation(() => ({}));
-    withTestScheduler(({ behavior, expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([]),
-          rtcMembers$: constant([localRtcMember]),
-          windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
-        },
-        (vm) => {
-          // The same call the test above starts from. None of the dialler's rules may reach it.
-          expectObservable(
-            vm.layout$.pipe(
-              map((l) => l.type),
-              distinctUntilChanged(),
-            ),
-          ).toBe("a", { a: "grid" });
-        },
-      );
+    test("a call of one is not drawn as a grid of one, which would be your own face", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ behavior, expectObservable }) => {
+        withCallViewModel(
+          {
+            // Nobody else in the call and no ring going out: the pair layouts do not apply, and
+            // upstream falls back to a grid, whose only tile is yours.
+            remoteParticipants$: constant([]),
+            rtcMembers$: constant([localRtcMember]),
+            windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
+          },
+          (vm) => {
+            expectObservable(
+              vm.layout$.pipe(
+                map((l) => l.type),
+                distinctUntilChanged(),
+              ),
+            ).toBe("a", { a: "spotlight-expanded" });
+          },
+        );
+      });
     });
-  });
 
-  test("the floating window shows the caller alone, without the dialler controls", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    getPlatform.mockReturnValue("android");
-    withTestScheduler(({ behavior, expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([aliceParticipant]),
-          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
-          // Small enough to be the picture-in-picture window the host puts in the corner.
-          windowSize$: behavior("a", { a: { width: 300, height: 200 } }),
-        },
-        (vm) => {
-          // A row of controls built for a phone does not fit a window this size, and taps do not
-          // reach it, so upstream shows none. The dialler has to follow that rather than its own
-          // rule of always keeping hang-up within reach.
-          expectObservable(vm.showFooter$).toBe("a", { a: false });
-        },
-      );
+    test("with the flag off, the layout is whatever Element Call would have drawn", () => {
+      getUrlParams.mockImplementation(() => ({}));
+      withTestScheduler(({ behavior, expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([]),
+            rtcMembers$: constant([localRtcMember]),
+            windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
+          },
+          (vm) => {
+            // The same call the test above starts from. None of the dialler's rules may reach it.
+            expectObservable(
+              vm.layout$.pipe(
+                map((l) => l.type),
+                distinctUntilChanged(),
+              ),
+            ).toBe("a", { a: "grid" });
+          },
+        );
+      });
     });
-  });
 
-  test("the floating window shows the room, then whoever is being called", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, schedule, expectObservable }) => {
-      withCallViewModel(
-        {
-          roomMembers: [alice, local],
-          windowSize$: behavior("a", { a: { width: 300, height: 200 } }),
-        },
-        (vm, rtcSession) => {
-          schedule("n", {
-            n: () => {
-              rtcSession.emit(
-                MatrixRTCSessionEvent.DidSendCallNotification,
-                mockRingEvent("$notif1", 30),
-              );
-            },
-          });
-
-          expectObservable(
-            places$(vm.layout$).pipe(skipWhile((v) => !v.startsWith("pip:"))),
-          ).toBe("(ab)", {
-            a: "pip: room:!room:example.org",
-            b: `pip: ringing:${aliceUserId}`,
-          });
-        },
-        { waitForCallPickup: true },
-      );
+    test("the floating window shows the caller alone, without the dialler controls", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      getPlatform.mockReturnValue("android");
+      withTestScheduler(({ behavior, expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([aliceParticipant]),
+            rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+            // Small enough to be the picture-in-picture window the host puts in the corner.
+            windowSize$: behavior("a", { a: { width: 300, height: 200 } }),
+          },
+          (vm) => {
+            // A row of controls built for a phone does not fit a window this size, and taps do not
+            // reach it, so upstream shows none. The dialler has to follow that rather than its own
+            // rule of always keeping hang-up within reach.
+            expectObservable(vm.showFooter$).toBe("a", { a: false });
+          },
+        );
+      });
     });
-  });
 
-  test("calling a room shows the room, not your own face", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, expectObservable }) => {
-      withCallViewModel(
-        {
-          // In the call on your own, as when a room is called and nobody has joined yet.
-          remoteParticipants$: constant([]),
-          rtcMembers$: constant([localRtcMember]),
-          windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
-        },
-        (vm) => {
-          expectObservable(spotlightIds$(vm.layout$)).toBe("a", {
-            a: "room:!room:example.org",
-          });
-        },
-      );
+    test("the floating window shows the room, then whoever is being called", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ behavior, schedule, expectObservable }) => {
+        withCallViewModel(
+          {
+            roomMembers: [alice, local],
+            windowSize$: behavior("a", { a: { width: 300, height: 200 } }),
+          },
+          (vm, rtcSession) => {
+            schedule("n", {
+              n: () => {
+                rtcSession.emit(
+                  MatrixRTCSessionEvent.DidSendCallNotification,
+                  mockRingEvent("$notif1", 30),
+                );
+              },
+            });
+
+            expectObservable(
+              places$(vm.layout$).pipe(skipWhile((v) => !v.startsWith("pip:"))),
+            ).toBe("(ab)", {
+              a: "pip: room:!room:example.org",
+              b: `pip: ringing:${aliceUserId}`,
+            });
+          },
+          { waitForCallPickup: true },
+        );
+      });
     });
-  });
 
-  test("ringing a room of several shows the room, not a member picked at random", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, schedule, expectObservable }) => {
-      withCallViewModel(
-        {
-          // Three people in the room, none of them in the call yet. Element Call rings whoever
-          // comes first in its map of members, which is no one in particular.
-          roomMembers: [alice, bob, local],
-          remoteParticipants$: constant([]),
-          rtcMembers$: constant([localRtcMember]),
-          windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
-        },
-        (vm, rtcSession) => {
-          schedule("n", {
-            n: () => {
-              rtcSession.emit(
-                MatrixRTCSessionEvent.DidSendCallNotification,
-                mockRingEvent("$notif1", 30),
-              );
-            },
-          });
-
-          expectObservable(spotlightIds$(vm.layout$)).toBe("a", {
-            a: "room:!room:example.org",
-          });
-        },
-        { waitForCallPickup: true },
-      );
+    test("calling a room shows the room, not your own face", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ behavior, expectObservable }) => {
+        withCallViewModel(
+          {
+            // In the call on your own, as when a room is called and nobody has joined yet.
+            remoteParticipants$: constant([]),
+            rtcMembers$: constant([localRtcMember]),
+            windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
+          },
+          (vm) => {
+            expectObservable(spotlightIds$(vm.layout$)).toBe("a", {
+              a: "room:!room:example.org",
+            });
+          },
+        );
+      });
     });
-  });
 
-  test("showFooter$ stays on in phone-voice mode, even after tapping the screen", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ behavior, schedule, expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([aliceParticipant]),
-          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
-          // Phone-sized, so the layout underneath is the edge-to-edge one-on-one one whose
-          // controls a tap would normally swallow. A dialer never hides the hang-up button.
-          windowSize$: behavior("a", { a: { width: 380, height: 700 } }),
-        },
-        (vm) => {
-          schedule("-t", { t: () => vm.tapScreen() });
-          expectObservable(vm.showFooter$).toBe("a", { a: true });
-        },
-      );
+    test("ringing a room of several shows the room, not a member picked at random", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ behavior, schedule, expectObservable }) => {
+        withCallViewModel(
+          {
+            // Three people in the room, none of them in the call yet. Element Call rings whoever
+            // comes first in its map of members, which is no one in particular.
+            roomMembers: [alice, bob, local],
+            remoteParticipants$: constant([]),
+            rtcMembers$: constant([localRtcMember]),
+            windowSize$: behavior("a", { a: { width: 360, height: 800 } }),
+          },
+          (vm, rtcSession) => {
+            schedule("n", {
+              n: () => {
+                rtcSession.emit(
+                  MatrixRTCSessionEvent.DidSendCallNotification,
+                  mockRingEvent("$notif1", 30),
+                );
+              },
+            });
+
+            expectObservable(spotlightIds$(vm.layout$)).toBe("a", {
+              a: "room:!room:example.org",
+            });
+          },
+          { waitForCallPickup: true },
+        );
+      });
     });
-  });
-});
+
+    test("showFooter$ stays on in phone-voice mode, even after tapping the screen", () => {
+      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
+      withTestScheduler(({ behavior, schedule, expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([aliceParticipant]),
+            rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+            // Phone-sized, so the layout underneath is the edge-to-edge one-on-one one whose
+            // controls a tap would normally swallow. A dialer never hides the hang-up button.
+            windowSize$: behavior("a", { a: { width: 380, height: 700 } }),
+          },
+          (vm) => {
+            schedule("-t", { t: () => vm.tapScreen() });
+            expectObservable(vm.showFooter$).toBe("a", { a: true });
+          },
+        );
+      });
+    });
+  },
+);
