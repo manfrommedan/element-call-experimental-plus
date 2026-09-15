@@ -59,7 +59,7 @@ import {
 
 initializeWidget();
 
-const MATRIX_RTC_MODE = MatrixRTCMode.Legacy;
+const MATRIX_RTC_MODE = MatrixRTCMode.Compatibility;
 const getUrlParams = vi.hoisted(() => vi.fn(() => ({})));
 vi.mock("../../../UrlParams", () => ({ getUrlParams }));
 vi.mock("@livekit/components-core", () => ({
@@ -71,12 +71,6 @@ vi.mock("@livekit/components-core", () => ({
 describe("LocalMembership", () => {
   describe("enterRTCSession", () => {
     it("It joins the correct Session", () => {
-      const focusFromOlderMembership = {
-        type: "livekit",
-        livekit_service_url: "http://my-oldest-member-service-url.com",
-        livekit_alias: "my-oldest-member-service-alias",
-      };
-
       mockConfig({
         livekit: { livekit_service_url: "http://my-default-service-url.com" },
       });
@@ -95,10 +89,6 @@ describe("LocalMembership", () => {
           },
         },
         memberships: [],
-        getFocusInUse: vi.fn().mockReturnValue(focusFromOlderMembership),
-        getOldestMembership: vi.fn().mockReturnValue({
-          getPreferredFoci: vi.fn().mockReturnValue([focusFromOlderMembership]),
-        }),
         joinRTCSession: vi.fn(),
       }) as unknown as MatrixRTCSession;
 
@@ -122,17 +112,63 @@ describe("LocalMembership", () => {
           memberId: "@alice:example.org:DEVICE",
           userId: "@alice:example.org",
         },
-        [
-          {
-            livekit_alias: "roomId",
-            livekit_service_url: "http://my-livekit-service-url.com",
-            type: "livekit",
+        [],
+        {
+          livekit_alias: "roomId",
+          livekit_service_url: "http://my-livekit-service-url.com",
+          type: "livekit",
+        },
+        expect.objectContaining({ manageMediaKeys: true }),
+      );
+    });
+
+    it("passes keyRotationParticipantLimit from config to joinRTCSession", () => {
+      mockConfig({
+        livekit: { livekit_service_url: "http://my-default-service-url.com" },
+        matrix_rtc_session: {
+          delayed_leave_event_delay_ms: 0,
+          network_error_retry_ms: 0,
+          key_rotation_participant_limit: 50,
+        },
+      });
+
+      const mockedSession = vi.mocked({
+        room: {
+          roomId: "roomId",
+          client: {
+            getDomain: vi.fn().mockReturnValue("example.org"),
+            getOpenIdToken: vi.fn().mockResolvedValue({
+              access_token: "ACCCESS_TOKEN",
+              token_type: "Bearer",
+              matrix_server_name: "localhost",
+              expires_in: 10000,
+            }),
           },
-        ],
-        undefined,
+        },
+        memberships: [],
+        joinRTCSession: vi.fn(),
+      }) as unknown as MatrixRTCSession;
+
+      enterRTCSession(
+        mockedSession,
+        ownMemberMock,
+        {
+          livekit_alias: "roomId",
+          livekit_service_url: "http://my-livekit-service-url.com",
+          type: "livekit",
+        },
+        {
+          encryptMedia: true,
+          matrixRTCMode: MATRIX_RTC_MODE,
+        },
+      );
+
+      expect(mockedSession.joinRTCSession).toHaveBeenLastCalledWith(
+        expect.any(Object),
+        [],
+        expect.any(Object),
         expect.objectContaining({
-          manageMediaKeys: true,
-          useLegacyMemberEvents: false,
+          keyRotationParticipantLimit: 50,
         }),
       );
     });

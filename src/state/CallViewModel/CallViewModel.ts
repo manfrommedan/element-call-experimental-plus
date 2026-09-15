@@ -80,7 +80,7 @@ import {
   type ReactionInfo,
   type ReactionOption,
 } from "../../reactions";
-import { shallowEquals } from "../../utils/array";
+import { shallowEquals as shallowArrayEquals } from "../../utils/array";
 import { type MediaDevices } from "../MediaDevices";
 import { constant, type Behavior } from "../Behavior";
 import { E2eeType } from "../../e2ee/e2eeType";
@@ -90,6 +90,7 @@ import { getUrlParams, HeaderStyle } from "../../UrlParams";
 import { type ProcessorState } from "../../livekit/TrackProcessorContext";
 import { ElementWidgetActions, widget } from "../../widget";
 import {
+  layoutShallowEquals,
   type Alignment,
   type GridLayoutMedia,
   type Layout,
@@ -114,6 +115,7 @@ import {
   type LocalTransport,
 } from "./localMember/LocalTransport.ts";
 import {
+  createKeyRotationSuppressed$,
   createMemberships$,
   membershipsAndTransports$,
 } from "../SessionBehaviors.ts";
@@ -302,6 +304,12 @@ export interface CallViewModel {
    *    multiple devices.
    */
   participantCount$: Behavior<number>;
+  /**
+   * Whether the call has grown large enough that MatrixRTC has stopped rotating the media
+   * encryption key. While this is true the key in use is still shared with new joiners, but no new
+   * key is generated when someone joins or leaves.
+   */
+  keyRotationSuppressed$: Behavior<boolean>;
   allConnections$: Behavior<ConnectionManagerData>;
   /** Participants sorted by livekit room so they can be used in the audio rendering */
   livekitRoomItems$: Behavior<LivekitRoomItem[]>;
@@ -365,6 +373,11 @@ export interface CallViewModel {
    * Whether the call layout is overflowing the interface (causing it to scroll).
    */
   overflowing$: Behavior<boolean>;
+
+  /**
+   * Whether modals such as settings and reactions should be accessible at all.
+   */
+  showModals$: Behavior<boolean>;
 
   settingsOpen$: Behavior<boolean>;
   setSettingsOpen$: Behavior<(open: boolean) => void>;
@@ -441,7 +454,7 @@ export function createCallViewModel$(
   const matrixRTCMode$ =
     configMatrixRTCMode !== undefined
       ? constant(configMatrixRTCMode)
-      : (options.matrixRTCMode$ ?? constant(MatrixRTCMode.Legacy));
+      : (options.matrixRTCMode$ ?? constant(MatrixRTCMode.Compatibility));
 
   // Each hbar seperates a block of input variables required for the CallViewModel to function.
   // The outputs of this block is written under the hbar.
@@ -503,7 +516,6 @@ export function createCallViewModel$(
               mode === MatrixRTCMode.Matrix_2_0
                 ? JwtEndpointVersion.Matrix_2_0
                 : JwtEndpointVersion.Legacy,
-            useOldestMember: mode === MatrixRTCMode.Legacy,
           }),
       ),
     ),
@@ -862,6 +874,11 @@ export function createCallViewModel$(
     matrixLivekitMembers$.pipe(map((ms) => ms.length)),
   );
 
+  const keyRotationSuppressed$ = createKeyRotationSuppressed$(
+    scope,
+    matrixRTCSession,
+  );
+
   const leaveSoundEffect$ = userMedia$.pipe(
     pairwise(),
     filter(
@@ -947,7 +964,7 @@ export function createCallViewModel$(
               bins.sort(([, bin1], [, bin2]) => bin1 - bin2).map(([m]) => m),
             );
       }),
-      distinctUntilChanged(shallowEquals),
+      distinctUntilChanged(shallowArrayEquals),
     ),
   );
 
@@ -1050,7 +1067,7 @@ export function createCallViewModel$(
   const spotlight$ = scope.behavior<MediaViewModel[]>(
     spotlightAndPip$.pipe(
       map(({ spotlight }) => spotlight),
-      distinctUntilChanged<MediaViewModel[]>(shallowEquals),
+      distinctUntilChanged<MediaViewModel[]>(shallowArrayEquals),
     ),
   );
 
@@ -1259,6 +1276,7 @@ export function createCallViewModel$(
         }
         return layout;
       }),
+      distinctUntilChanged(),
       scope.bind(),
     )
     .subscribe((orientation) => {
@@ -1607,6 +1625,11 @@ export function createCallViewModel$(
       map((naturallyShowFooter) => naturallyShowFooter && showFooterUrlParams),
     ),
   );
+
+  const showModals$ = scope.behavior(
+    windowMode$.pipe(map((mode) => mode !== "pip")),
+  );
+
   const settingsOpen$ = new BehaviorSubject(false);
   const setSettingsOpen$ = constant((open: boolean) => {
     settingsOpen$.next(open);
@@ -1736,7 +1759,11 @@ export function createCallViewModel$(
    * The layout of tiles in the call interface.
    */
   const layout$ = scope.behavior<Layout>(
-    layoutInternals$.pipe(map(({ layout }) => layout)),
+    layoutInternals$.pipe(
+      map(({ layout }) => layout),
+      // Drop redundant layout updates before they would hit React.
+      distinctUntilChanged<Layout>(layoutShallowEquals),
+    ),
   );
 
   const overflowing$ = scope.behavior<boolean>(
@@ -1944,6 +1971,7 @@ export function createCallViewModel$(
     ),
     allConnections$,
     participantCount$: participantCount$,
+    keyRotationSuppressed$: keyRotationSuppressed$,
     handsRaised$: handsRaised$,
     reactions$: reactions$,
     joinSoundEffect$: joinSoundEffect$,
@@ -1993,6 +2021,7 @@ export function createCallViewModel$(
     showNameTags$,
     showHeader$: showHeader$,
     showFooter$: showFooter$,
+    showModals$,
     settingsOpen$: settingsOpen$,
     setSettingsOpen$: setSettingsOpen$,
     edgeToEdge$,

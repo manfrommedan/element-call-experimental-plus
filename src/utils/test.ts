@@ -237,7 +237,7 @@ export function mockRtcMembership(
       fociPreferred: [exampleTransport],
       focusActive: {
         type: "livekit" as const,
-        focus_selection: "oldest_membership" as const,
+        focus_selection: "multi_sfu" as const,
       },
       callId: "",
       membership: {},
@@ -469,9 +469,6 @@ export class MockRTCSession extends TypedEventEmitter<
     session.reemitEncryptionKeys = vi
       .fn<() => void>()
       .mockReturnValue(undefined);
-    session.getOldestMembership = vi
-      .fn<() => CallMembership | undefined>()
-      .mockReturnValue(this.memberships[0]);
 
     return session;
   }
@@ -495,6 +492,8 @@ export class MockRTCSession extends TypedEventEmitter<
   public isJoined(): boolean {
     return this.joined;
   }
+
+  public isKeyRotationSuppressed = false;
 
   public withMemberships(
     rtcMembers$: Behavior<Partial<CallMembership>[]>,
