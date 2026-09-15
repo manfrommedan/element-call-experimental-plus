@@ -19,6 +19,8 @@ import { withTestScheduler } from "../../utils/test";
 import {
   alice,
   aliceRtcMember,
+  bob,
+  bobRtcMember,
   local,
   localRtcMember,
 } from "../../utils/test-fixtures";
@@ -142,6 +144,36 @@ test("ring attempt is accepted once recipient joins", () => {
       ...defaultProps,
       memberships$: scope.behavior(
         behavior("a-b", { a: [], b: [aliceRtcMember] }).pipe(trackEpoch()),
+      ),
+      sentCallNotification$: hot("-a", {
+        a: mockRingEvent("$notif1", 30),
+      }),
+    });
+
+    expectObservable(summarizeRingAttempts$(ringAttempts$)).toBe("-aA", {
+      a: { intent: "audio", recipient: alice.userId },
+      A: { outcome: "accept" },
+    });
+  });
+});
+
+test("ring attempt is accepted when a different group member joins", () => {
+  withTestScheduler(({ scope, expectObservable, hot, behavior }) => {
+    const { ringAttempts$ } = createCallNotificationLifecycle$({
+      scope,
+      ...defaultProps,
+      // Three people in the room: alice is first in the members map and so
+      // named as the dialer's recipient, but bob is the one who actually
+      // picks up. The ring is addressed to the room, so the dialling phase
+      // must end when bob joins, not only when alice does.
+      matrixRoomMembers$: constant(
+        new Map([
+          [alice.userId, alice],
+          [bob.userId, bob],
+        ]),
+      ),
+      memberships$: scope.behavior(
+        behavior("a-b", { a: [], b: [bobRtcMember] }).pipe(trackEpoch()),
       ),
       sentCallNotification$: hot("-a", {
         a: mockRingEvent("$notif1", 30),

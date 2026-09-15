@@ -102,7 +102,9 @@ vi.mock("react-use-measure", () => ({
   default: (): [() => void, object] => [(): void => {}, {}],
 }));
 
-const localRtcMember = mockRtcMembership("@carol:example.org", "CCCC");
+// Must carry the local user's real id (the env resolves it from the fixtures), otherwise the
+// view model reads this membership as a remote member and the dialer accepts the call.
+const localRtcMember = mockRtcMembership("@local:example.org", "CCCC");
 const localParticipant = mockLocalParticipant({
   identity: "@local:example.org:AAAAAA",
 });
