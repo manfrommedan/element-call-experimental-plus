@@ -40,6 +40,10 @@ Please see LICENSE in the repository root for full details.
     calc(env(safe-area-inset-right) + 10px)
     calc(var(--call-view-safe-area-inset-bottom, 0px) + 10px)
     calc(env(safe-area-inset-left) + 10px);
+  /* Scalar edges for MediaView's status margin math: a calc() cannot subtract
+  the shorthand above, and without these the margins silently collapse to 0. */
+  --media-view-fg-inset-block-start: 10px;
+  --media-view-fg-inset-inline-start: 10px;
 }
 
 .item.snap {

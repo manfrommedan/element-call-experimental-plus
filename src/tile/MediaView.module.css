@@ -172,6 +172,17 @@ unconditionally select the container so we can use cqmin units */
     --media-view-fg-inset,
     calc(var(--media-view-border-radius) - var(--cpd-space-3x))
   );
+  /* Scalar edges of the inset for margin math below. --fg-inset may hold a
+  full padding shorthand (maximised spotlight tiles), which a calc() cannot
+  subtract; hosts of that shorthand also provide the scalar edges. */
+  --fg-inset-block-start: var(
+    --media-view-fg-inset-block-start,
+    var(--fg-inset)
+  );
+  --fg-inset-inline-start: var(
+    --media-view-fg-inset-inline-start,
+    var(--fg-inset)
+  );
   padding: var(--fg-inset);
   transition: padding 0.3s;
   display: grid;
@@ -211,8 +222,8 @@ unconditionally select the container so we can use cqmin units */
   color: var(--cpd-color-text-primary);
   user-select: none;
   overflow: hidden;
-  margin-block-start: calc(var(--cpd-space-3x) - var(--fg-inset));
-  margin-inline-start: calc(var(--cpd-space-4x) - var(--fg-inset));
+  margin-block-start: calc(var(--cpd-space-3x) - var(--fg-inset-block-start));
+  margin-inline-start: calc(var(--cpd-space-4x) - var(--fg-inset-inline-start));
 
   svg {
     color: var(--cpd-color-icon-tertiary);
