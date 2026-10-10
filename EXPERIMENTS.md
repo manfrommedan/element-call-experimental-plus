@@ -38,6 +38,14 @@ runs before anything else in the bundle so the app boots cleanly on older Androi
 system WebViews (notably Huawei devices on Chromium &lt; 119). The rest of the
 project remains browser-list driven.
 
+### 📐 Waiting-for-media alignment on full screen tiles
+
+On a maximised spotlight tile upstream hands the foreground a four-value padding
+shorthand and then subtracts it inside a `calc()`, which is invalid CSS: the
+status text's margins silently collapse to zero and "Waiting for media" sticks
+to the tile edge. The margin math here uses scalar edge insets instead, so the
+text lands at its designed offsets. Other layouts are untouched.
+
 ## Building
 
 ```bash
