@@ -23,7 +23,11 @@ export const makePhoneVoiceLayout: CallLayout<PhoneVoiceLayoutModel> = () => ({
     useUpdateLayout();
     return (
       <div ref={ref} className={styles.layer}>
-        <Slot id="spotlight" model={model.spotlight} className={styles.spotlight} />
+        <Slot
+          id="spotlight"
+          model={model.spotlight}
+          className={styles.spotlight}
+        />
       </div>
     );
   },

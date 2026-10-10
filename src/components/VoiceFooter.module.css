@@ -102,7 +102,6 @@ Please see LICENSE in the repository root for full details.
   }
 }
 
-
 .row {
   grid-area: buttons;
   justify-self: center;
@@ -115,8 +114,6 @@ Please see LICENSE in the repository root for full details.
   /* The same gap Element Call puts between its own call controls. */
   gap: var(--cpd-space-3x);
 }
-
-
 
 .row {
   /* 150 ms hits the snappy-but-perceivable sweet spot for short UI

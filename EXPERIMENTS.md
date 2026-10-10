@@ -6,11 +6,11 @@ behaviour is unchanged for any host that doesn't pass the flag.
 
 ## ⚠️ Disclaimer
 
-* **Unofficial.** Not affiliated with, endorsed by, or coordinated with Element Hq Ltd. or
+- **Unofficial.** Not affiliated with, endorsed by, or coordinated with Element Hq Ltd. or
   the Element Call team.
-* **Experimental.** Builds are produced from a moving branch; expect rough edges.
-* **As is, at your own risk.** No warranty, no support contract, no SLA.
-* **Don't kick us.** Please don't open issues against `element-hq/element-call` for
+- **Experimental.** Builds are produced from a moving branch; expect rough edges.
+- **As is, at your own risk.** No warranty, no support contract, no SLA.
+- **Don't kick us.** Please don't open issues against `element-hq/element-call` for
   changes that originated here.
 
 ## What's different from upstream
@@ -20,11 +20,11 @@ behaviour is unchanged for any host that doesn't pass the flag.
 When the embedding host adds `phoneVoiceLayout=true` to the Element Call widget URL,
 audio-only 1:1 calls render with:
 
-* A four-button bottom row (microphone / audio output / video / hang up) replacing the
+- A four-button bottom row (microphone / audio output / video / hang up) replacing the
   standard `CallFooter`.
-* The remote tile expanded to fill the screen, local PiP suppressed, the "Calling…"
+- The remote tile expanded to fill the screen, local PiP suppressed, the "Calling…"
   ringing-status overlay hidden.
-* A synthesised classic 440 + 480 Hz Bell-System ringback while waiting for pickup.
+- A synthesised classic 440 + 480 Hz Bell-System ringback while waiting for pickup.
   The upstream lobby ringtone, earpiece overlay, and obscured-content gate are
   suppressed since the phone-style layout already covers the same ground.
 

@@ -239,7 +239,7 @@ export function withCallViewModel(mode: MatrixRTCMode) {
             );
           },
         },
-        matrixRTCMode$: constant(mode),
+        matrixRTCMode: mode,
         ...options,
       },
       raisedHands$,

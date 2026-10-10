@@ -19,21 +19,28 @@ import {
   beforeAll,
   afterAll,
   beforeEach,
+  afterEach,
 } from "vitest";
 import { BehaviorSubject, map, of } from "rxjs";
 import { logger } from "matrix-js-sdk/lib/logger";
 import { type LocalParticipant, type LocalTrack } from "livekit-client";
+import fetchMock from "fetch-mock";
 
 import { PosthogAnalytics } from "../../../analytics/PosthogAnalytics";
-import { MatrixRTCMode } from "../../../config/ConfigOptions";
+import {
+  MatrixRTCMode,
+  type ResolvedDelayedLeaveTimings,
+} from "../../../config/ConfigOptions";
 import { type HomeserverDisconnectReason } from "./HomeserverConnected";
 import {
   flushPromises,
   mockConfig,
   mockLivekitRoom,
+  mockLocalParticipant,
   mockMuteStates,
   withTestScheduler,
   ownMemberMock,
+  testScope,
 } from "../../../utils/test";
 import {
   TransportState,
@@ -41,6 +48,7 @@ import {
   enterRTCSession,
   PublishState,
   TrackState,
+  watchScreenShareToggle,
 } from "./LocalMember";
 import {
   FailToGetOpenIdToken,
@@ -52,10 +60,12 @@ import { ConnectionManagerData } from "../remoteMembers/ConnectionManager";
 import { ConnectionState, type Connection } from "../remoteMembers/Connection";
 import { type Publisher } from "./Publisher";
 import { initializeWidget } from "../../../widget";
+import { nullHostBridge } from "../../../HostBridge";
 import {
   type LocalTransport,
   type LocalTransportWithSFUConfig,
 } from "./LocalTransport";
+import * as openIDSFU from "../../../livekit/openIDSFU";
 
 initializeWidget();
 
@@ -68,112 +78,137 @@ vi.mock("@livekit/components-core", () => ({
     .mockReturnValue(of({ isScreenShareEnabled: false })),
 }));
 
-describe("LocalMembership", () => {
-  describe("enterRTCSession", () => {
-    it("It joins the correct Session", () => {
-      mockConfig({
-        livekit: { livekit_service_url: "http://my-default-service-url.com" },
-      });
-
-      const mockedSession = vi.mocked({
-        room: {
-          roomId: "roomId",
-          client: {
-            getDomain: vi.fn().mockReturnValue("example.org"),
-            getOpenIdToken: vi.fn().mockResolvedValue({
-              access_token: "ACCCESS_TOKEN",
-              token_type: "Bearer",
-              matrix_server_name: "localhost",
-              expires_in: 10000,
-            }),
-          },
-        },
-        memberships: [],
-        joinRTCSession: vi.fn(),
-      }) as unknown as MatrixRTCSession;
-
-      enterRTCSession(
-        mockedSession,
-        ownMemberMock,
-        {
-          livekit_alias: "roomId",
-          livekit_service_url: "http://my-livekit-service-url.com",
-          type: "livekit",
-        },
-        {
-          encryptMedia: true,
-          matrixRTCMode: MATRIX_RTC_MODE,
-        },
-      );
-
-      expect(mockedSession.joinRTCSession).toHaveBeenLastCalledWith(
-        {
-          deviceId: "DEVICE",
-          memberId: "@alice:example.org:DEVICE",
-          userId: "@alice:example.org",
-        },
-        [],
-        {
-          livekit_alias: "roomId",
-          livekit_service_url: "http://my-livekit-service-url.com",
-          type: "livekit",
-        },
-        expect.objectContaining({ manageMediaKeys: true }),
-      );
-    });
-
-    it("passes keyRotationParticipantLimit from config to joinRTCSession", () => {
-      mockConfig({
-        livekit: { livekit_service_url: "http://my-default-service-url.com" },
-        matrix_rtc_session: {
-          delayed_leave_event_delay_ms: 0,
-          network_error_retry_ms: 0,
-          key_rotation_participant_limit: 50,
-        },
-      });
-
-      const mockedSession = vi.mocked({
-        room: {
-          roomId: "roomId",
-          client: {
-            getDomain: vi.fn().mockReturnValue("example.org"),
-            getOpenIdToken: vi.fn().mockResolvedValue({
-              access_token: "ACCCESS_TOKEN",
-              token_type: "Bearer",
-              matrix_server_name: "localhost",
-              expires_in: 10000,
-            }),
-          },
-        },
-        memberships: [],
-        joinRTCSession: vi.fn(),
-      }) as unknown as MatrixRTCSession;
-
-      enterRTCSession(
-        mockedSession,
-        ownMemberMock,
-        {
-          livekit_alias: "roomId",
-          livekit_service_url: "http://my-livekit-service-url.com",
-          type: "livekit",
-        },
-        {
-          encryptMedia: true,
-          matrixRTCMode: MATRIX_RTC_MODE,
-        },
-      );
-
-      expect(mockedSession.joinRTCSession).toHaveBeenLastCalledWith(
-        expect.any(Object),
-        [],
-        expect.any(Object),
-        expect.objectContaining({
-          keyRotationParticipantLimit: 50,
-        }),
-      );
-    });
+describe("watchScreenShareToggle", () => {
+  it("reports nothing when the toggle completes", async () => {
+    const onError = vi.fn();
+    watchScreenShareToggle(Promise.resolve(), true, logger, onError);
+    await flushPromises();
+    expect(onError).not.toHaveBeenCalled();
   });
 
+  it("reports failures other than the user cancelling", async () => {
+    const onError = vi.fn();
+    const e = new Error("NotReadableError");
+    watchScreenShareToggle(Promise.reject(e), true, logger, onError);
+    await flushPromises();
+    expect(onError).toHaveBeenCalledWith(e);
+  });
+
+  it("does not report the user cancelling the picker", async () => {
+    const onError = vi.fn();
+    const cancelled = new DOMException("Permission denied", "NotAllowedError");
+    watchScreenShareToggle(Promise.reject(cancelled), true, logger, onError);
+    await flushPromises();
+    expect(onError).not.toHaveBeenCalled();
+  });
+});
+
+const timings: ResolvedDelayedLeaveTimings = {
+  delay_ms: 10000,
+  restart_ms: 4000,
+  restart_timeout_ms: 1000,
+};
+
+const delegatedTimings: ResolvedDelayedLeaveTimings = {
+  delay_ms: timings.delay_ms * 10,
+  restart_ms: timings.restart_ms! * 10,
+  restart_timeout_ms: timings.restart_timeout_ms! * 10,
+};
+
+const mockedClient = {
+  getDomain: vi.fn().mockReturnValue("example.org"),
+  getDeviceId: vi.fn().mockReturnValue("AAAA"),
+  getOpenIdToken: vi.fn().mockResolvedValue({
+    access_token: "ACCCESS_TOKEN",
+    token_type: "Bearer",
+    matrix_server_name: "localhost",
+    expires_in: 10000,
+  }),
+};
+
+describe("enterRTCSession", () => {
+  const transport: LivekitTransportConfig = {
+    livekit_alias: "roomId",
+    livekit_service_url: "http://my-livekit-service-url.com",
+    type: "livekit",
+  };
+
+  const options = {
+    encryptMedia: true,
+    matrixRTCMode: MATRIX_RTC_MODE,
+    delayedLeaveTimings: timings,
+  };
+
+  const mockedSession = vi.mocked({
+    room: {
+      roomId: "roomId",
+      client: mockedClient,
+    },
+    memberships: [],
+    joinRTCSession: vi.fn(),
+  }) as unknown as MatrixRTCSession;
+
+  beforeEach(() =>
+    mockConfig({
+      livekit: { livekit_service_url: "http://my-default-service-url.com" },
+    }),
+  );
+
+  it("It joins the correct Session", () => {
+    enterRTCSession(mockedSession, ownMemberMock, transport, options);
+
+    expect(mockedSession.joinRTCSession).toHaveBeenLastCalledWith(
+      {
+        deviceId: "DEVICE",
+        memberId: "@alice:example.org:DEVICE",
+        userId: "@alice:example.org",
+      },
+      [],
+      transport,
+      expect.objectContaining({ manageMediaKeys: true }),
+    );
+  });
+
+  it("passes keyRotationParticipantLimit from config to joinRTCSession", () => {
+    mockConfig({
+      livekit: { livekit_service_url: "http://my-default-service-url.com" },
+      matrix_rtc_session: {
+        network_error_retry_ms: 0,
+        key_rotation_participant_limit: 50,
+        delayed_leave: timings,
+        delegated_delayed_leave: timings,
+      },
+    });
+
+    enterRTCSession(mockedSession, ownMemberMock, transport, options);
+
+    expect(mockedSession.joinRTCSession).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      [],
+      expect.any(Object),
+      expect.objectContaining({
+        keyRotationParticipantLimit: 50,
+      }),
+    );
+  });
+
+  it("uses the specified delayed leave timings", () => {
+    enterRTCSession(mockedSession, ownMemberMock, transport, options);
+
+    expect(mockedSession.joinRTCSession).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        delayedLeaveEventRestartMs: timings.restart_ms,
+        delayedLeaveEventDelayMs: timings.delay_ms,
+        delayedLeaveEventRestartLocalTimeoutMs: timings.restart_timeout_ms,
+      }),
+    );
+  });
+});
+
+describe("LocalMembership", () => {
   const defaultCreateLocalMemberValues = {
     options: constant({
       encryptMedia: false,
@@ -199,7 +234,31 @@ describe("LocalMembership", () => {
       rtsSession$: constant(RTCMemberStatus.Connected),
     },
     roomId: "!test-room-id:example.org",
+    hideScreensharing: false,
+    hostBridge: nullHostBridge,
+    baseUrl: "https://matrix.example.org",
+    ownMembershipIdentity: ownMemberMock,
+    client: mockedClient,
+    delayId$: constant(null),
+    matrixRTCMode: MATRIX_RTC_MODE,
   };
+
+  beforeEach(() => {
+    mockConfig({
+      livekit: { livekit_service_url: "http://my-default-service-url.com" },
+      matrix_rtc_session: {
+        network_error_retry_ms: 1000,
+        delayed_leave: timings,
+        delegated_delayed_leave: delegatedTimings,
+      },
+    });
+    fetchMock.catch(404);
+  });
+
+  afterEach(async () => {
+    void (await fetchMock.flush());
+    fetchMock.reset();
+  });
 
   it("throws error on missing RTC config error", () => {
     withTestScheduler(({ scope, hot, behavior, expectObservable }) => {
@@ -227,9 +286,8 @@ describe("LocalMembership", () => {
         scope,
         ...defaultCreateLocalMemberValues,
         connectionManager: mockConnectionManager,
-        localTransport$: behavior("a", { a: aLocalTransport }),
+        localTransport: aLocalTransport,
       });
-      localMembership.requestJoinAndPublish();
 
       expectObservable(localMembership.localMemberState$).toBe("ne", {
         n: TransportState.Waiting,
@@ -272,9 +330,8 @@ describe("LocalMembership", () => {
         scope,
         ...defaultCreateLocalMemberValues,
         connectionManager: mockConnectionManager,
-        localTransport$: behavior("a", { a: aLocalTransport }),
+        localTransport: aLocalTransport,
       });
-      localMembership.requestJoinAndPublish();
 
       expectObservable(localMembership.localMemberState$).toBe("n-e", {
         n: TransportState.Waiting,
@@ -290,8 +347,8 @@ describe("LocalMembership", () => {
     const scope = new ObservableScope();
 
     const aLocalTransport: LocalTransport = {
-      advertised$: new BehaviorSubject(aTransport),
-      active$: new BehaviorSubject(aTransportWithSFUConfig),
+      advertised$: constant(aTransport),
+      active$: constant(aTransportWithSFUConfig),
     };
 
     const mockConnectionManager = {
@@ -309,7 +366,7 @@ describe("LocalMembership", () => {
         leaveRoomSession: vi.fn(),
       },
       connectionManager: mockConnectionManager,
-      localTransport$: new BehaviorSubject(aLocalTransport),
+      localTransport: aLocalTransport,
     });
     const expextedLog =
       "'not connected yet' while updating the call intent (this is expected on startup)";
@@ -370,12 +427,90 @@ describe("LocalMembership", () => {
     livekitRoom: mockLivekitRoom({}),
   } as unknown as Connection;
 
+  const authCallSpy = vi
+    .spyOn(openIDSFU, "getSFUConfigWithOpenID")
+    .mockImplementation(() => mockedClient.getOpenIdToken());
+  afterEach(() => authCallSpy.mockClear());
+
+  it.each([
+    ["no", null, timings],
+    [
+      "homeserver",
+      "https://matrix.example.org/_matrix/client/unstable/io.element.msc4195/rtc/livekit/delegate_delayed_leave",
+      delegatedTimings,
+    ],
+    ["transport", "/a/delegate_delayed_leave", delegatedTimings],
+  ])(
+    "joins session with %s delegation support",
+    async (_serviceName, delegationUrl, delayedLeaveTimings) => {
+      const scope = testScope();
+      const joinMatrixRTC = vi.fn();
+      const delayId$ = new BehaviorSubject<string | null>(null);
+
+      if (delegationUrl !== null)
+        fetchMock.post(delegationUrl, () => ({ status: 401, body: {} }));
+
+      const localMembership = createLocalMembership$({
+        scope,
+        ...defaultCreateLocalMemberValues,
+        connectionManager: {
+          connectionManagerData$: constant(
+            new Epoch(new ConnectionManagerData()),
+          ),
+        },
+        joinMatrixRTC,
+        localTransport: {
+          advertised$: constant(aTransport),
+          active$: constant(aTransportWithSFUConfig),
+        },
+        delayId$,
+      });
+
+      localMembership.requestJoinAndPublish();
+      void (await fetchMock.flush());
+      await flushPromises();
+      // Joins with timings appropriate for the level of delegation support
+      expect(joinMatrixRTC).toHaveBeenCalledWith(
+        aTransport,
+        delayedLeaveTimings,
+      );
+
+      expect(authCallSpy).not.toHaveBeenCalled();
+      delayId$.next("leave1");
+      await flushPromises();
+      if (delegationUrl === null) {
+        expect(authCallSpy).not.toHaveBeenCalled();
+      } else {
+        // Delegation is supported in this test case, so go on to check that
+        // LocalMember actually performs delegation
+        const expectDelegation = (delayId: string) =>
+          expect(authCallSpy).toHaveBeenLastCalledWith(
+            mockedClient,
+            ownMemberMock,
+            "a",
+            "!test-room-id:example.org",
+            {
+              matrixRTCMode: MATRIX_RTC_MODE,
+              delayEndpointBaseUrl: "https://matrix.example.org",
+              delayId,
+            },
+            expect.anything(),
+          );
+
+        expectDelegation("leave1");
+        delayId$.next("leave2"); // Can change delegated leaves
+        await flushPromises();
+        expectDelegation("leave2");
+      }
+    },
+  );
+
   it("recreates publisher if new connection is used, always unpublish and end tracks", async () => {
     const scope = new ObservableScope();
 
     const activeTransport$ = new BehaviorSubject(aTransportWithSFUConfig);
     const aLocalTransport: LocalTransport = {
-      advertised$: new BehaviorSubject(aTransport),
+      advertised$: constant(aTransport),
       active$: activeTransport$,
     };
 
@@ -413,7 +548,7 @@ describe("LocalMembership", () => {
       connectionManager: {
         connectionManagerData$: constant(new Epoch(connectionManagerData)),
       },
-      localTransport$: new BehaviorSubject(aLocalTransport),
+      localTransport: aLocalTransport,
     });
     await flushPromises();
     activeTransport$.next({
@@ -444,7 +579,7 @@ describe("LocalMembership", () => {
     const publishers: Publisher[] = [];
 
     const tracks$ = new BehaviorSubject<LocalTrack[]>([]);
-    const publishing$ = new BehaviorSubject<boolean>(false);
+    const publishing$ = constant<boolean>(false);
     defaultCreateLocalMemberValues.createPublisherFactory.mockImplementation(
       () => {
         const p = {
@@ -468,8 +603,8 @@ describe("LocalMembership", () => {
       >;
 
     const aLocalTransport: LocalTransport = {
-      advertised$: new BehaviorSubject(aTransport),
-      active$: new BehaviorSubject(aTransportWithSFUConfig),
+      advertised$: constant(aTransport),
+      active$: constant(aTransportWithSFUConfig),
     };
 
     const connectionManagerData = new ConnectionManagerData();
@@ -481,7 +616,7 @@ describe("LocalMembership", () => {
       connectionManager: {
         connectionManagerData$: constant(new Epoch(connectionManagerData)),
       },
-      localTransport$: new BehaviorSubject(aLocalTransport),
+      localTransport: aLocalTransport,
     });
     await flushPromises();
     expect(publisherFactory).toHaveBeenCalledOnce();
@@ -509,7 +644,7 @@ describe("LocalMembership", () => {
       new BehaviorSubject<null | LocalTransportWithSFUConfig>(null);
 
     const aLocalTransport: LocalTransport = {
-      advertised$: new BehaviorSubject(aTransport),
+      advertised$: constant(aTransport),
       active$: activeTransport$,
     };
 
@@ -552,7 +687,7 @@ describe("LocalMembership", () => {
       connectionManager: {
         connectionManagerData$,
       },
-      localTransport$: new BehaviorSubject(aLocalTransport),
+      localTransport: aLocalTransport,
     });
 
     await flushPromises();
@@ -687,10 +822,10 @@ describe("LocalMembership", () => {
         connectionManager: {
           connectionManagerData$: constant(new Epoch(connectionManagerData)),
         },
-        localTransport$: new BehaviorSubject({
-          advertised$: new BehaviorSubject(aTransport),
-          active$: new BehaviorSubject(aTransportWithSFUConfig),
-        }),
+        localTransport: {
+          advertised$: constant(aTransport),
+          active$: constant(aTransportWithSFUConfig),
+        },
       });
 
       await flushPromises();
@@ -727,10 +862,10 @@ describe("LocalMembership", () => {
         connectionManager: {
           connectionManagerData$: constant(new Epoch(connectionManagerData)),
         },
-        localTransport$: new BehaviorSubject({
-          advertised$: new BehaviorSubject(aTransport),
-          active$: new BehaviorSubject(aTransportWithSFUConfig),
-        }),
+        localTransport: {
+          advertised$: constant(aTransport),
+          active$: constant(aTransportWithSFUConfig),
+        },
       });
 
       await flushPromises();
@@ -769,18 +904,19 @@ describe("LocalMembership", () => {
         scope,
         ...defaultCreateLocalMemberValues,
         homeserverConnected: {
-          combined$: new BehaviorSubject<
-            [boolean, HomeserverDisconnectReason | null]
-          >([true, null]),
+          combined$: constant<[boolean, HomeserverDisconnectReason | null]>([
+            true,
+            null,
+          ]),
           rtsSession$: constant(RTCMemberStatus.Connected),
         },
         connectionManager: {
           connectionManagerData$: constant(new Epoch(connectionManagerData)),
         },
-        localTransport$: new BehaviorSubject({
-          advertised$: new BehaviorSubject(aTransport),
-          active$: new BehaviorSubject(aTransportWithSFUConfig),
-        }),
+        localTransport: {
+          advertised$: constant(aTransport),
+          active$: constant(aTransportWithSFUConfig),
+        },
       });
 
       await flushPromises();
@@ -821,10 +957,10 @@ describe("LocalMembership", () => {
         connectionManager: {
           connectionManagerData$: constant(new Epoch(connectionManagerData)),
         },
-        localTransport$: new BehaviorSubject({
-          advertised$: new BehaviorSubject(aTransport),
-          active$: new BehaviorSubject(aTransportWithSFUConfig),
-        }),
+        localTransport: {
+          advertised$: constant(aTransport),
+          active$: constant(aTransportWithSFUConfig),
+        },
       });
 
       await flushPromises();
@@ -850,6 +986,100 @@ describe("LocalMembership", () => {
         "probablyLeft",
         expect.any(Number),
       );
+
+      scope.end();
+    });
+  });
+
+  describe("toggleScreenSharing", () => {
+    let originalMediaDevices: MediaDevices | undefined;
+
+    beforeAll(() => {
+      mockConfig();
+      // Screen sharing is only offered when getDisplayMedia is available.
+      originalMediaDevices = navigator.mediaDevices;
+      Object.defineProperty(navigator, "mediaDevices", {
+        configurable: true,
+        value: { getDisplayMedia: vi.fn() },
+      });
+    });
+
+    afterAll(() => {
+      Object.defineProperty(navigator, "mediaDevices", {
+        configurable: true,
+        value: originalMediaDevices,
+      });
+    });
+
+    const createMembershipWithConnection = (
+      connection: Connection | null,
+    ): {
+      scope: ObservableScope;
+      localMembership: ReturnType<typeof createLocalMembership$>;
+    } => {
+      const scope = new ObservableScope();
+      const connectionManagerData = new ConnectionManagerData();
+      if (connection) connectionManagerData.add(connection, []);
+      const localMembership = createLocalMembership$({
+        scope,
+        ...defaultCreateLocalMemberValues,
+        connectionManager: {
+          connectionManagerData$: constant(new Epoch(connectionManagerData)),
+        },
+        localTransport: {
+          advertised$: constant(aTransport),
+          active$: constant(aTransportWithSFUConfig),
+        },
+      });
+      return { scope, localMembership };
+    };
+
+    it("surfaces a failure and clears it on dismiss", async () => {
+      const error = new Error("NotReadableError");
+      const setScreenShareEnabled = vi.fn().mockRejectedValue(error);
+      const connection = {
+        state$: constant(ConnectionState.LivekitConnected),
+        transport: aTransport,
+        livekitRoom: mockLivekitRoom({
+          localParticipant: mockLocalParticipant({
+            isScreenShareEnabled: false,
+            setScreenShareEnabled,
+          }),
+        }),
+      } as unknown as Connection;
+      const { scope, localMembership } =
+        createMembershipWithConnection(connection);
+      await flushPromises();
+
+      expect(localMembership.toggleScreenSharing).not.toBeNull();
+      expect(localMembership.screenShareError$.value).toBeNull();
+
+      localMembership.toggleScreenSharing!();
+      await flushPromises();
+
+      expect(setScreenShareEnabled).toHaveBeenCalledWith(
+        true,
+        expect.any(Object),
+        undefined,
+      );
+      expect(localMembership.screenShareError$.value).toBe(error);
+
+      localMembership.dismissScreenShareError();
+      expect(localMembership.screenShareError$.value).toBeNull();
+
+      scope.end();
+    });
+
+    it("does nothing when there is no local participant", async () => {
+      // No connection means participant$ never resolves to a participant.
+      const { scope, localMembership } = createMembershipWithConnection(null);
+      await flushPromises();
+
+      expect(localMembership.toggleScreenSharing).not.toBeNull();
+      localMembership.toggleScreenSharing!();
+      await flushPromises();
+
+      expect(localMembership.screenShareError$.value).toBeNull();
 
       scope.end();
     });

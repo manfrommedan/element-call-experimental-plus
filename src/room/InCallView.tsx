@@ -28,7 +28,9 @@ import { useTranslation } from "react-i18next";
 import { Header, LeftNav, RightNav, RoomHeaderInfo } from "../Header";
 import { HeaderStyle, useUrlParams } from "../UrlParams";
 import { useCallViewKeyboardShortcuts } from "../useCallViewKeyboardShortcuts";
-import { widget } from "../widget";
+import { useHostBridge } from "../HostBridge.ts";
+import { useRootElement } from "../RootElementContext";
+import { observeElementSize$ } from "../utils/elementSize";
 import styles from "./InCallView.module.css";
 import { GridTile } from "../tile/GridTile";
 import { SettingsModal, defaultSettingsTab } from "../settings/SettingsModal";
@@ -41,6 +43,7 @@ import { type MatrixInfo } from "./VideoPreview";
 import { InviteButton } from "../button/InviteButton";
 import {
   type CallViewModel,
+  callViewModelOptionsFromParams,
   createCallViewModel$,
 } from "../state/CallViewModel/CallViewModel.ts";
 import { Grid, type TileProps } from "../grid/Grid";
@@ -118,8 +121,12 @@ export const ActiveCall: FC<ActiveCallProps> = (props) => {
     useState<ViewModel<DeveloperSettingsSnapshot> | null>(null);
 
   const urlParams = useUrlParams();
+  const hostBridge = useHostBridge();
   const mediaDevices = useMediaDevices();
   const trackProcessorState$ = useTrackProcessorObservable$();
+  // The element we have to draw the call in: the page, or the container a host
+  // gave us. Its size, not the window's, decides how the call is laid out.
+  const rootElement = useRootElement();
   useEffect(() => {
     rootLogger.info("START CALL VIEW SCOPE");
     const scope = new ObservableScope();
@@ -134,10 +141,15 @@ export const ActiveCall: FC<ActiveCallProps> = (props) => {
       mediaDevices,
       props.muteStates,
       {
+        ...callViewModelOptionsFromParams(urlParams),
         encryptionSystem: props.e2eeSystem,
+        hostBridge,
         autoLeaveWhenOthersLeft,
         waitForCallPickup: waitForCallPickup && sendNotificationType === "ring",
-        matrixRTCMode$: matrixRTCModeSetting.value$,
+        // We merely sample the current mode here, so the user would need to
+        // manually rejoin to switch to a different one.
+        matrixRTCMode: matrixRTCModeSetting.value$.value,
+        windowSize$: scope.behavior(observeElementSize$(rootElement)),
       },
       reactionsReader.raisedHands$,
       reactionsReader.reactions$,
@@ -159,9 +171,11 @@ export const ActiveCall: FC<ActiveCallProps> = (props) => {
     props.e2eeSystem,
     props.onLeft,
     urlParams,
+    hostBridge,
     mediaDevices,
     trackProcessorState$,
     props.client,
+    rootElement,
   ]);
 
   useEffect(() => {
@@ -174,6 +188,7 @@ export const ActiveCall: FC<ActiveCallProps> = (props) => {
       props.muteStates,
       mediaDevices,
       `${props.client.getUserId()}:${props.client.getDeviceId()}`,
+      { showControls: urlParams.showControls, header: urlParams.header },
     );
     setFooterVm(footerVm);
     setDeveloperSettingsVm(createDeveloperSettingsTabViewModel(scope, vm));
@@ -234,6 +249,7 @@ export const InCallView: FC<InCallViewProps> = ({
 }) => {
   const logger = rootLogger.getChild("[InCallView]");
   const { t } = useTranslation();
+  const hostBridge = useHostBridge();
   const { sendReaction, toggleRaisedHand } = useReactionsSender();
 
   useWakeLock();
@@ -252,6 +268,20 @@ export const InCallView: FC<InCallViewProps> = ({
   const [containerRef2, bounds] = useMeasure();
   // Merge the refs so they can attach to the same element
   const containerRef = useMergedRefs(containerRef1, containerRef2);
+
+  // The fixed grid is positioned against Element Call's root, so offsets
+  // handed to it have to be measured from there rather than from the
+  // viewport. Standalone the two are the same, the root being the page; for a
+  // component the root sits wherever the host put it, and measuring from the
+  // viewport would push the grid down by that much again. Taken at the same
+  // moment as `bounds`, so that the two agree however the host has scrolled.
+  const rootElement = useRootElement();
+  const rootTop = useMemo(
+    () => rootElement.getBoundingClientRect().top,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rootElement, bounds],
+  );
+  const topWithinRoot = bounds.top - rootTop;
 
   const { showControls, header: headerStyle } = useUrlParams();
 
@@ -273,6 +303,7 @@ export const InCallView: FC<InCallViewProps> = ({
   const audioParticipants = useBehavior(vm.livekitRoomItems$);
   const participantCount = useBehavior(vm.participantCount$);
   const reconnecting = useBehavior(vm.reconnecting$);
+  const screenShareError = useBehavior(vm.screenShareError$);
   const layout = useBehavior(vm.layout$);
   const edgeToEdge = useBehavior(vm.edgeToEdge$);
   const overflowing = useBehavior(vm.overflowing$);
@@ -318,14 +349,14 @@ export const InCallView: FC<InCallViewProps> = ({
 
   const openProfile = useMemo(
     () =>
-      // Profile settings are unavailable in widget mode
-      widget === null
+      // The profile is only ours to edit when the account is ours
+      hostBridge.supportsProfileChanges
         ? (): void => {
             setSettingsTab("profile");
             setSettingsOpen(true);
           }
         : null,
-    [setSettingsTab, setSettingsOpen],
+    [setSettingsTab, setSettingsOpen, hostBridge],
   );
 
   const [headerRef, headerBounds] = useMeasure();
@@ -356,9 +387,9 @@ export const InCallView: FC<InCallViewProps> = ({
   // the moment it is not: turning the camera on mid-ring leaves the ordinary call screen, and
   // that screen has nothing else to say the call has yet to be answered.
   useAppBarSubtitle(
-    ringingVm &&
-      !phoneVoiceMode &&
-      vm.ringingStatusLocation === "app_bar" && <RingingStatus vm={ringingVm} />,
+    ringingVm && !phoneVoiceMode && vm.ringingStatusLocation === "app_bar" && (
+      <RingingStatus vm={ringingVm} />
+    ),
   );
 
   let header: ReactNode = null;
@@ -405,6 +436,21 @@ export const InCallView: FC<InCallViewProps> = ({
       );
   }
 
+  const onDismissScreenShareToast = useCallback(
+    () => vm.dismissScreenShareError(),
+    [vm],
+  );
+  const screenShareToast = (
+    <Toast
+      onDismiss={onDismissScreenShareToast}
+      open={screenShareError !== null}
+      autoDismiss={5000}
+      modal={false}
+    >
+      {t("error.screen_share_failed")}
+    </Toast>
+  );
+
   // The reconnecting toast cannot be dismissed
   const onDismissReconnectingToast = useCallback(() => {}, []);
   // We need to use a non-modal toast to avoid trapping focus within the toast.
@@ -435,8 +481,7 @@ export const InCallView: FC<InCallViewProps> = ({
 
   // If the reconnecting toast or earpiece overlay obscures the media tiles, we
   // need to remove them from the accessibility tree and block focus.
-  const contentObscured =
-    reconnecting || (earpieceMode && !phoneVoiceMode);
+  const contentObscured = reconnecting || (earpieceMode && !phoneVoiceMode);
 
   const Tile = useMemo(
     () =>
@@ -545,7 +590,7 @@ export const InCallView: FC<InCallViewProps> = ({
         className={styles.fixedGrid}
         style={{
           // If not edge-to-edge, consume the header insets right here.
-          insetBlockStart: edgeToEdge ? 0 : bounds.top + headerBounds.height,
+          insetBlockStart: edgeToEdge ? 0 : topWithinRoot + headerBounds.height,
           height: edgeToEdge ? "100%" : gridBounds.height,
           // If edge-to-edge, compute new safe area insets that account for the
           // header and footer, passing them down to the tiles.
@@ -556,7 +601,7 @@ export const InCallView: FC<InCallViewProps> = ({
                 // itself. Otherwise account for the safe area and header size
                 // as part of the InCallView.
                 headerStyle === HeaderStyle.AppBar
-                ? `${bounds.top}px`
+                ? `${topWithinRoot}px`
                 : `calc(env(safe-area-inset-top) + ${headerBounds.height}px)`
               : undefined,
           "--call-view-safe-area-inset-bottom":
@@ -637,6 +682,9 @@ export const InCallView: FC<InCallViewProps> = ({
         [styles.overflowing]: overflowing,
       })}
       ref={containerRef}
+      // Which layout the call has settled on, for tests and for anyone
+      // wondering why the call looks the way it does at the size it was given
+      data-layout={layout.type}
       onPointerUp={onViewPointerUp}
       onPointerMove={onPointerMove}
       onPointerOut={onPointerOut}
@@ -662,6 +710,7 @@ export const InCallView: FC<InCallViewProps> = ({
         <RingingAudioRenderer vm={ringingVm} muted={muteAllAudio} />
       )}
       {reconnectingToast}
+      {screenShareToast}
       {earpieceOverlay}
       <ReactionsOverlay vm={vm} />
       <div className={styles.footerSlot}>{footer}</div>

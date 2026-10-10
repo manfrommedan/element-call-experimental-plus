@@ -9,7 +9,13 @@ import { type KnipConfig } from "knip";
 
 export default {
   vite: {
-    config: ["vite.config.ts", "vite-embedded.config.ts", "vite-sdk.config.ts"],
+    config: [
+      "vite.config.ts",
+      "vite-embedded.config.ts",
+      "vite-sdk.config.ts",
+      "vite-component.config.ts",
+      "vite-component-dev.config.ts",
+    ],
   },
   entry: ["src/main.tsx", "eslint/index.js", "i18next.config.ts"],
   ignoreBinaries: [
@@ -25,6 +31,10 @@ export default {
     // Deliberately added prior to any component or business logic
     // implementation
     "src/state/ServiceInterruptionsViewModel.ts",
+    // Build artifacts of the embedded Android library. Ignored via the nested
+    // embedded/android/.gitignore, which Knip does not read.
+    "embedded/android/lib/build/**",
+    "embedded/android/lib/src/main/assets/**",
   ],
   ignoreDependencies: [
     // Used in CSS

@@ -11,8 +11,13 @@ import { type RTCCallIntent } from "matrix-js-sdk/lib/matrixrtc";
 /**
  * Calculates the initial mute state for media devices based on configuration.
  *
- * It is not always possible to start the widget with audio/video unmuted due to privacy concerns.
- * This function encapsulates the logic to determine the appropriate initial state.
+ * It is not always possible to start the call with audio/video unmuted due to
+ * privacy concerns. This function encapsulates the logic to determine the
+ * appropriate initial state.
+ *
+ * @param allowJoinUnmutedViaIntent Whether the host vouches for the intent
+ *   enough to start the user unmuted without a lobby (see
+ *   `HostBridge.allowJoinUnmutedViaIntent`).
  *
  * `phoneVoiceLayout` is a host-supplied flag (Element X's "Phone-style voice
  * calls" Labs option) used as an override for `callIntent`: when set, the call
@@ -25,29 +30,29 @@ import { type RTCCallIntent } from "matrix-js-sdk/lib/matrixrtc";
 export function calculateInitialMuteState(
   skipLobby: boolean,
   callIntent: RTCCallIntent | undefined,
-  isWidgetMode: boolean,
+  allowJoinUnmutedViaIntent: boolean,
   phoneVoiceLayout: boolean = false,
 ): { audioEnabled: boolean; videoEnabled: boolean } {
   logger.debug(
-    `calculateInitialMuteState: skipLobby=${skipLobby}, callIntent=${callIntent} isWidgetMode=${isWidgetMode} phoneVoiceLayout=${phoneVoiceLayout}`,
+    `calculateInitialMuteState: skipLobby=${skipLobby}, callIntent=${callIntent} allowJoinUnmutedViaIntent=${allowJoinUnmutedViaIntent} phoneVoiceLayout=${phoneVoiceLayout}`,
   );
 
-  if (skipLobby && !isWidgetMode) {
-    // If not in widget mode and lobby is skipped, default to muted to protect user privacy.
-    // In the SPA context we don't want to unmute users without giving them a chance to adjust their settings first.
+  if (skipLobby && !allowJoinUnmutedViaIntent) {
+    // The lobby is skipped, so the user gets no chance to adjust their devices
+    // before joining, and nobody has vouched for the intent: default to muted
+    // to protect their privacy.
     return {
       audioEnabled: false,
       videoEnabled: false,
     };
   }
 
-  // Embedded contexts are trusted environments, so they allow unmuted by default.
-  // Same for when showing a lobby, as users can adjust their settings there.
-  // Video starts disabled when the call intent is "audio" or when the host
-  // has flagged this as a phone-style voice call.
-  const isVoiceCall = callIntent === "audio" || phoneVoiceLayout;
+  // A host that vouches for the intent is a trusted environment, so it allows
+  // unmuted by default. Same for when showing a lobby, as users can adjust
+  // their settings there. Video starts disabled when the call intent is
+  // "audio" or when the host has flagged this as a phone-style voice call.
   return {
     audioEnabled: true,
-    videoEnabled: !isVoiceCall,
+    videoEnabled: callIntent != "audio" && !phoneVoiceLayout,
   };
 }

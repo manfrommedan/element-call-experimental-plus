@@ -11,6 +11,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import classNames from "classnames";
@@ -23,11 +24,7 @@ import HeadphonesSolidIcon from "@vector-im/compound-design-tokens/assets/web/ic
 import VoiceCallIcon from "@vector-im/compound-design-tokens/assets/web/icons/voice-call";
 import VolumeOnSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/volume-on-solid";
 
-import {
-  EndCallButton,
-  MicButton,
-  VideoButton,
-} from "../button/Button";
+import { EndCallButton, MicButton, VideoButton } from "../button/Button";
 import { ReactionToggleButton } from "../button/ReactionToggleButton";
 import { type CallViewModel } from "../state/CallViewModel/CallViewModel";
 import { LayoutSwitch } from "../room/LayoutSwitch";
@@ -394,16 +391,19 @@ function haptic(kind: "tap" | "hangup" | "connect"): void {
 }
 
 function useElapsedSeconds(active: boolean): number {
-  const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [, setTick] = useState(0);
+  const startedAt = useRef<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     if (!active) return undefined;
-    setStartedAt((prev) => prev ?? Date.now());
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    startedAt.current ??= Date.now();
+    const start = startedAt.current;
+    const id = setInterval(
+      () => setElapsed(Math.max(0, Math.floor((Date.now() - start) / 1000))),
+      1000,
+    );
     return (): void => clearInterval(id);
   }, [active]);
-  if (startedAt === null) return 0;
-  return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  return elapsed;
 }
 
 function formatTimer(totalSeconds: number): string {
@@ -475,8 +475,14 @@ export function useOutgoingRingback(active: boolean): void {
         const gainNode = ctx.createGain();
         gainNode.connect(ctx.destination);
         gainNode.gain.setValueAtTime(0, start);
-        gainNode.gain.linearRampToValueAtTime(RINGBACK_GAIN, start + RINGBACK_RAMP_S);
-        gainNode.gain.setValueAtTime(RINGBACK_GAIN, start + duration - RINGBACK_RAMP_S);
+        gainNode.gain.linearRampToValueAtTime(
+          RINGBACK_GAIN,
+          start + RINGBACK_RAMP_S,
+        );
+        gainNode.gain.setValueAtTime(
+          RINGBACK_GAIN,
+          start + duration - RINGBACK_RAMP_S,
+        );
         gainNode.gain.linearRampToValueAtTime(0, start + duration);
         for (const frequency of RINGBACK_FREQUENCIES_HZ) {
           const osc = ctx.createOscillator();

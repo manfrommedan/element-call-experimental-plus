@@ -54,6 +54,7 @@ import { AppBar } from "../AppBar";
 import { type MatrixInfo } from "./VideoPreview";
 import { ProcessorProvider } from "../livekit/TrackProcessorContext";
 import { initializeWidget } from "../widget";
+import { RootElementProvider } from "../RootElementContext";
 import { RingingAudioRenderer } from "./RingingAudioRenderer";
 import { RingingStatus } from "../tile/RingingStatus";
 import type * as UrlParamsModule from "../UrlParams";
@@ -268,24 +269,22 @@ describe("InCallView", () => {
 
 describe("ringing while the dialler is up", () => {
   it("leaves Element Call's ringtone out, since the dialler rings for itself", () => {
-    urlParams.answer = () => ({ ...urlParams.real(), phoneVoiceLayout: true });
-    createInCallView();
+    createInCallView({ callViewModelOptions: { phoneVoiceLayout: true } });
     expect(RingingAudioRenderer).not.toHaveBeenCalled();
   });
 
   // A ring has to actually be going out for the status to have anything to say, and the app bar
   // has to be the place it would say it, or the test passes for the wrong reason.
   const ringing = (dialler: boolean): void => {
-    urlParams.answer = () => ({
-      ...urlParams.real(),
-      header: HeaderStyle.AppBar,
-      ...(dialler ? { phoneVoiceLayout: true } : {}),
-    });
     const { rtcSession } = createInCallView({
       // Only we are in the call, so the other party is still being rung.
       rtcMemberships: [localRtcMember as unknown as CallMembership],
       withAppBar: true,
-      callViewModelOptions: { waitForCallPickup: true },
+      callViewModelOptions: {
+        header: HeaderStyle.AppBar,
+        waitForCallPickup: true,
+        ...(dialler ? { phoneVoiceLayout: true } : {}),
+      },
     });
     act(() => {
       rtcSession.emit(MatrixRTCSessionEvent.DidSendCallNotification, {
@@ -341,5 +340,72 @@ describe("ActiveCall", () => {
     );
     // Rendering at all proves ActiveCall created all of its view models
     expect(await findByTestId("incall_leave")).toBeVisible();
+  });
+
+  it("lays the call out for the size of its root element", async () => {
+    // jsdom has no layout and no ResizeObserver: the root reports whatever
+    // size we say, and the observer notifies whenever we tell it to
+    let size = { width: 1000, height: 800 };
+    const root = document.createElement("div");
+    Object.defineProperty(root, "clientWidth", { get: () => size.width });
+    Object.defineProperty(root, "clientHeight", { get: () => size.height });
+    document.body.appendChild(root);
+
+    const observers: (() => void)[] = [];
+    const originalResizeObserver = window.ResizeObserver;
+    window.ResizeObserver = class {
+      public constructor(private readonly callback: ResizeObserverCallback) {}
+      public observe(): void {
+        observers.push(() => this.callback([], this as ResizeObserver));
+      }
+      public unobserve(): void {}
+      public disconnect(): void {}
+    } as unknown as typeof ResizeObserver;
+
+    try {
+      const mediaDevices = mockMediaDevices({});
+      const { rtcSession, matrixRoom } = getBasicRTCSession([local, alice]);
+      const { findByTestId, container } = render(
+        <BrowserRouter>
+          <RootElementProvider value={root}>
+            <MediaDevicesContext value={mediaDevices}>
+              <ProcessorProvider>
+                <TooltipProvider>
+                  <RoomContext value={mockLivekitRoom({ localParticipant })}>
+                    <ActiveCall
+                      client={matrixRoom.client}
+                      rtcSession={rtcSession.asMockedSession()}
+                      matrixRoom={matrixRoom}
+                      muteStates={mockMuteStates()}
+                      matrixInfo={matrixInfo}
+                      onShareClick={null}
+                      e2eeSystem={{ kind: E2eeType.NONE }}
+                      onLeft={(): void => {}}
+                    />
+                  </RoomContext>
+                </TooltipProvider>
+              </ProcessorProvider>
+            </MediaDevicesContext>
+          </RootElementProvider>
+        </BrowserRouter>,
+        { container: root },
+      );
+      await findByTestId("incall_leave");
+      const call = container.querySelector("[data-layout]")!;
+      expect(call.getAttribute("data-layout")).not.toBe("pip");
+
+      // The host shrinks the container to a corner of its page. The window has
+      // not changed at all — what matters is the element we were given.
+      size = { width: 300, height: 300 };
+      act(() => observers.forEach((notify) => notify()));
+      expect(call.getAttribute("data-layout")).toBe("pip");
+
+      size = { width: 1000, height: 800 };
+      act(() => observers.forEach((notify) => notify()));
+      expect(call.getAttribute("data-layout")).not.toBe("pip");
+    } finally {
+      window.ResizeObserver = originalResizeObserver;
+      root.remove();
+    }
   });
 });

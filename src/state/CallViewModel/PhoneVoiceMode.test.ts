@@ -6,9 +6,9 @@ Please see LICENSE in the repository root for full details.
 */
 
 // Focused tests for the phone-style 1:1 voice mode signal exposed by
-// `CallViewModel`. Lives in its own file so the URL-params mock used here
-// (which pretends the host passed `phoneVoiceLayout=true`) doesn't leak
-// into the rest of the suite — vitest scopes vi.mock() per test module.
+// `CallViewModel`. Lives in its own file because every case here passes the
+// `phoneVoiceLayout` option the host opts in with, plus the Platform mock the
+// floating-window cases need.
 
 import { afterEach, describe, test, vi } from "vitest";
 import {
@@ -22,7 +22,6 @@ import {
   type Observable,
 } from "rxjs";
 import { type LivekitTransport } from "matrix-js-sdk/lib/matrixrtc";
-import type * as UrlParamsModule from "../../UrlParams";
 
 vi.mock("rxjs", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -40,15 +39,6 @@ vi.mock("../../Platform", () => ({
 vi.mock("@livekit/components-core");
 vi.mock("livekit-client/e2ee-worker?worker");
 vi.mock("../../e2ee/matrixKeyProvider");
-
-const getUrlParams = vi.hoisted(() => vi.fn(() => ({})));
-// Partial mock: keep every other export from the real module (HeaderStyle,
-// UserIntent enum, etc.), only override getUrlParams so we can stub the
-// `phoneVoiceLayout` URL flag per test.
-vi.mock("../../UrlParams", async (importOriginal) => ({
-  ...(await importOriginal<typeof UrlParamsModule>()),
-  getUrlParams,
-}));
 
 vi.mock("./localMember/LocalTransport", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -140,9 +130,6 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
     const withCallViewModel = withCallViewModelInMode(mode);
 
     afterEach(() => {
-      // Reset the URL-params mock between tests so the flag never bleeds
-      // across cases inside this file.
-      getUrlParams.mockImplementation(() => ({}));
       getPlatform.mockReturnValue("desktop");
     });
 
@@ -161,7 +148,6 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
     });
 
     test("phoneVoiceMode$ flips on when phoneVoiceLayout=true and local video is off", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ expectObservable }) => {
         withCallViewModel(
           {
@@ -173,12 +159,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
             // mode is initially active.
             expectObservable(vm.phoneVoiceMode$).toBe("a", { a: true });
           },
+          { phoneVoiceLayout: true },
         );
       });
     });
 
     test("the layout switch appears once the phone is on its side, and not before", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ behavior, expectObservable }) => {
         withCallViewModel(
           {
@@ -197,12 +183,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
               vm.layoutSwitchVm$.pipe(map((switchVm) => switchVm !== null)),
             ).toBe("ab", { a: false, b: true });
           },
+          { phoneVoiceLayout: true },
         );
       });
     });
 
     test("turning the phone changes nothing on its own, the switch does", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ behavior, schedule, expectObservable }) => {
         withCallViewModel(
           {
@@ -234,12 +220,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
               b: "spotlight-landscape",
             });
           },
+          { phoneVoiceLayout: true },
         );
       });
     });
 
     test("the tiles put the other person in the spotlight and you in the column", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ behavior, schedule, expectObservable }) => {
         withCallViewModel(
           {
@@ -259,12 +245,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
               b: `big: ${aliceId}:0 | column: ${localId}:0`,
             });
           },
+          { phoneVoiceLayout: true },
         );
       });
     });
 
     test("a call of three on its side still starts on the speaker, not the tiles", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ behavior, schedule, expectObservable }) => {
         withCallViewModel(
           {
@@ -299,12 +285,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
               b: "spotlight-landscape",
             });
           },
+          { phoneVoiceLayout: true },
         );
       });
     });
 
     test("the tiles show who is being rung, not yourself", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ behavior, schedule, expectObservable }) => {
         withCallViewModel(
           {
@@ -338,13 +324,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
               b: `big: ringing:${aliceUserId} | column: ${localId}:0`,
             });
           },
-          { waitForCallPickup: true },
+          { waitForCallPickup: true, phoneVoiceLayout: true },
         );
       });
     });
 
     test("a call of one is not drawn as a grid of one, which would be your own face", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ behavior, expectObservable }) => {
         withCallViewModel(
           {
@@ -362,12 +347,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
               ),
             ).toBe("a", { a: "spotlight-expanded" });
           },
+          { phoneVoiceLayout: true },
         );
       });
     });
 
     test("with the flag off, the layout is whatever Element Call would have drawn", () => {
-      getUrlParams.mockImplementation(() => ({}));
       withTestScheduler(({ behavior, expectObservable }) => {
         withCallViewModel(
           {
@@ -389,7 +374,6 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
     });
 
     test("the floating window shows the caller alone, without the dialler controls", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       getPlatform.mockReturnValue("android");
       withTestScheduler(({ behavior, expectObservable }) => {
         withCallViewModel(
@@ -405,12 +389,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
             // rule of always keeping hang-up within reach.
             expectObservable(vm.showFooter$).toBe("a", { a: false });
           },
+          { phoneVoiceLayout: true },
         );
       });
     });
 
     test("the floating window shows the room, then whoever is being called", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ behavior, schedule, expectObservable }) => {
         withCallViewModel(
           {
@@ -434,13 +418,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
               b: `pip: ringing:${aliceUserId}`,
             });
           },
-          { waitForCallPickup: true },
+          { waitForCallPickup: true, phoneVoiceLayout: true },
         );
       });
     });
 
     test("calling a room shows the room, not your own face", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ behavior, expectObservable }) => {
         withCallViewModel(
           {
@@ -454,12 +437,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
               a: "room:!room:example.org",
             });
           },
+          { phoneVoiceLayout: true },
         );
       });
     });
 
     test("ringing a room of several shows the room, not a member picked at random", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ behavior, schedule, expectObservable }) => {
         withCallViewModel(
           {
@@ -484,13 +467,12 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
               a: "room:!room:example.org",
             });
           },
-          { waitForCallPickup: true },
+          { waitForCallPickup: true, phoneVoiceLayout: true },
         );
       });
     });
 
     test("showFooter$ stays on in phone-voice mode, even after tapping the screen", () => {
-      getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
       withTestScheduler(({ behavior, schedule, expectObservable }) => {
         withCallViewModel(
           {
@@ -504,6 +486,7 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
             schedule("-t", { t: () => vm.tapScreen() });
             expectObservable(vm.showFooter$).toBe("a", { a: true });
           },
+          { phoneVoiceLayout: true },
         );
       });
     });

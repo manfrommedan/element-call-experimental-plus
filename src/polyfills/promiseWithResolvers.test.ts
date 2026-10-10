@@ -64,7 +64,11 @@ describe("Promise.withResolvers polyfill", () => {
   });
 
   it("leaves a native implementation untouched", async () => {
-    const sentinel = (): unknown => ({ promise: null, resolve: null, reject: null });
+    const sentinel = (): unknown => ({
+      promise: null,
+      resolve: null,
+      reject: null,
+    });
     Object.defineProperty(PROMISE_PROTOTYPE, "withResolvers", {
       configurable: true,
       writable: true,

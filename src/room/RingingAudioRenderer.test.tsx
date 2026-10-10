@@ -62,7 +62,9 @@ test("ringtone still plays when mounted into a call that is already ringing", ()
   (prefetchSounds as MockedFunction<typeof prefetchSounds>).mockResolvedValue({
     sound: new ArrayBuffer(0),
   });
-  const playSoundLooping = vi.fn().mockReturnValue(vi.fn().mockResolvedValue(undefined));
+  const playSoundLooping = vi
+    .fn()
+    .mockReturnValue(vi.fn().mockResolvedValue(undefined));
   const useAudioContextMock = useAudioContext as MockedFunction<
     typeof useAudioContext
   >;
@@ -77,7 +79,9 @@ test("ringtone still plays when mounted into a call that is already ringing", ()
     intent: "audio",
     // Already ringing when this renderer appears, so nothing about the call will change to
     // prompt a second attempt. This is the mid-call switch to the camera.
-    pickupState$: new BehaviorSubject<"ringing" | "timeout" | "decline">("ringing"),
+    pickupState$: new BehaviorSubject<"ringing" | "timeout" | "decline">(
+      "ringing",
+    ),
   });
 
   const { rerender } = render(<RingingAudioRenderer vm={vm} muted={false} />);

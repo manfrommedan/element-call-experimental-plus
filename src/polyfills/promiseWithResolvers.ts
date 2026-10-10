@@ -6,7 +6,10 @@ Please see LICENSE in the repository root for full details.
 */
 
 // Promise.withResolvers (ES2024) polyfill for Chromium <119.
-if (typeof Promise !== "undefined" && typeof Promise.withResolvers !== "function") {
+if (
+  typeof Promise !== "undefined" &&
+  typeof Promise.withResolvers !== "function"
+) {
   Object.defineProperty(Promise, "withResolvers", {
     configurable: true,
     writable: true,
