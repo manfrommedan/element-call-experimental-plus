@@ -33,11 +33,10 @@ the lobby ringtone, the earpiece overlay, and the standard `CallFooter`.
 
 ### 🛡️ Legacy Android WebView polyfill
 
-A small `Promise.withResolvers` polyfill is injected at the top of the embedded
-`index.html` so the bundle boots cleanly on older Android system WebViews
-(notably Huawei devices on Chromium &lt; 119). The polyfill is contained in a dedicated
-file (`vite-plugins/promiseWithResolvers.polyfill.js`) and inlined through Vite's
-stable HTML-tag injection API, so the rest of the project remains browser-list driven.
+A small `Promise.withResolvers` polyfill (`src/polyfills/promiseWithResolvers.ts`)
+runs before anything else in the bundle so the app boots cleanly on older Android
+system WebViews (notably Huawei devices on Chromium &lt; 119). The rest of the
+project remains browser-list driven.
 
 ## Building
 
