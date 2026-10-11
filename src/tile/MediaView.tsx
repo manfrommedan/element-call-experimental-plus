@@ -34,6 +34,12 @@ import { RTCConnectionStats } from "../RTCConnectionStats";
 import videoPlaceholder from "../graphics/video-placeholder.gif";
 import { autoVideoFit } from "../utils/videoFit";
 
+declare module "react" {
+  interface CSSProperties {
+    "--media-view-avatar-size"?: string;
+  }
+}
+
 interface Props extends ComponentProps<typeof animated.div> {
   className?: string;
   style?: ComponentProps<typeof animated.div>["style"];
@@ -157,7 +163,10 @@ export const MediaView: FC<Props> = ({
       className={classNames(styles.media, className, {
         [styles.mirror]: mirror,
       })}
-      style={style}
+      style={{
+        "--media-view-avatar-size": `${avatarSize}px`,
+        ...style,
+      }}
       ref={ref}
       data-testid="videoTile"
       data-video-enabled={video && videoEnabled}

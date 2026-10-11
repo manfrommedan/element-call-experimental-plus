@@ -234,6 +234,19 @@ unconditionally select the container so we can use cqmin units */
   }
 }
 
+/* A maximised tile centers the avatar, so the corner placement designed for
+grid tiles reads as a misprint there: the status belongs centered under the
+avatar, like the phone-style call screens place theirs. */
+[data-maximised="true"] .status {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: calc(
+    50% + var(--media-view-avatar-size, 0px) / 2 + var(--cpd-space-4x)
+  );
+  margin: 0;
+  text-align: center;
+}
+
 .reactions {
   grid-area: reactions;
   place-self: start end;
