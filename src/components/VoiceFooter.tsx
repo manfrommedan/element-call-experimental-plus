@@ -8,6 +8,7 @@ Please see LICENSE in the repository root for full details.
 import {
   type FC,
   type ReactNode,
+  type Ref,
   useCallback,
   useEffect,
   useMemo,
@@ -57,6 +58,8 @@ interface Props {
   /** Identifies the local user to the reactions, as "@user:server:DEVICE". */
   reactionIdentifier: string;
   hidden?: boolean;
+  /** Measured by the call view so the tiles know how much room the footer takes. */
+  ref?: Ref<HTMLDivElement>;
 }
 
 export const VoiceFooter: FC<Props> = ({
@@ -64,6 +67,7 @@ export const VoiceFooter: FC<Props> = ({
   muteStates,
   reactionIdentifier,
   hidden,
+  ref,
 }) => {
   const { t } = useTranslation();
   const audioEnabled = useObservableEagerState(muteStates.audio.enabled$);
@@ -191,7 +195,7 @@ export const VoiceFooter: FC<Props> = ({
           ? t("voice_layout.phase_ringing")
           : formatTimer(elapsedSeconds)}
       </div>
-      <div className={styles.footer}>
+      <div className={styles.footer} ref={ref}>
         <div className={styles.row}>
           <MicButton
             size="lg"

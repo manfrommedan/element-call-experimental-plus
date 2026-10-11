@@ -665,6 +665,9 @@ export const InCallView: FC<InCallViewProps> = ({
       muteStates={muteStates}
       reactionIdentifier={`${client.getUserId()}:${client.getDeviceId()}`}
       hidden={!showFooter}
+      // Measured like the standard footer, so the tile content keeps clear of
+      // it instead of peeking out from underneath.
+      ref={footerRef}
     />
   ) : (
     footerVm !== null && (
