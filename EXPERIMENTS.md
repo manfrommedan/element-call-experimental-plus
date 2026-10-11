@@ -43,8 +43,16 @@ project remains browser-list driven.
 On a maximised spotlight tile upstream hands the foreground a four-value padding
 shorthand and then subtracts it inside a `calc()`, which is invalid CSS: the
 status text's margins silently collapse to zero and "Waiting for media" sticks
-to the tile edge. The margin math here uses scalar edge insets instead, so the
-text lands at its designed offsets. Other layouts are untouched.
+to the tile edge. Here the status is instead centered horizontally just under
+the avatar on maximised tiles, where a call screen is expected to speak from the
+middle; grid tiles keep the upstream corner placement.
+
+### 📏 Tile content clears the voice footer
+
+The call view measures the footer to keep tile foreground elements above it, but
+the phone-style `VoiceFooter` was never wired into that measurement, so the
+tile's name tag slid underneath it and peeked out as a sliver at the bottom edge
+of the screen. The voice footer is now measured like the standard one.
 
 ## Building
 
