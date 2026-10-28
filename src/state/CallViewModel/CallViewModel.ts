@@ -75,7 +75,7 @@ import { gridLikeLayout } from "../GridLikeLayout";
 import { spotlightExpandedLayout } from "../SpotlightExpandedLayout";
 import { oneOnOneDesktopLayout } from "../OneOnOneDesktopLayout";
 import { oneOnOneMobileLayout } from "../OneOnOneMobileLayout";
-import { phoneVoiceLayout } from "../PhoneVoiceLayout";
+import { phoneVoiceLayout as makePhoneVoiceLayout } from "../PhoneVoiceLayout";
 import { pipLayout } from "../PipLayout";
 import { type EncryptionSystem } from "../../e2ee/sharedKeyManagement";
 import {
@@ -1331,66 +1331,66 @@ export function createCallViewModel$(
   );
 
   const rawLayoutMedia$: Observable<LayoutMedia> = windowMode$.pipe(
-      switchMap((windowMode) => {
-        switch (windowMode) {
-          case "normal":
-            return layoutSwitchVm.layout$.pipe(
-              switchMap((layout) => {
-                switch (layout) {
-                  case "grid":
-                    return oneOnOneDesktopLayoutMedia$.pipe(
-                      switchMap((oneOnOne) =>
-                        oneOnOne === null ? gridLayoutMedia$ : of(oneOnOne),
-                      ),
-                    );
-                  case "spotlight":
-                    return spotlightExpanded$.pipe(
-                      switchMap((expanded) =>
-                        expanded
-                          ? spotlightExpandedLayoutMedia$(false)
-                          : spotlightLandscapeLayoutMedia$(false),
-                      ),
-                    );
-                }
-              }),
-            );
-          case "narrow":
-            return oneOnOneMobileLayoutMedia$.pipe(
-              switchMap((oneOnOne) =>
-                oneOnOne === null
-                  ? combineLatest([grid$, spotlight$], (grid, spotlight) =>
-                      grid.length > smallMobileCallThreshold ||
-                      spotlight.some((vm) => vm.type === "screen share")
-                        ? spotlightPortraitLayoutMedia$
-                        : gridLayoutMedia$,
-                    ).pipe(switchAll())
-                  : of(oneOnOne),
-              ),
-            );
-          case "flat":
-            return oneOnOneMobileLayoutMedia$.pipe(
-              switchMap((oneOnOne) =>
-                oneOnOne === null
-                  ? layoutSwitchVm.layout$.pipe(
-                      switchMap((layout) => {
-                        switch (layout) {
-                          case "grid":
-                            // Yes, grid mode actually gets you a "spotlight" layout in
-                            // this window mode.
-                            return spotlightLandscapeLayoutMedia$(true);
-                          case "spotlight":
-                            return spotlightExpandedLayoutMedia$(true);
-                        }
-                      }),
-                    )
-                  : of(oneOnOne),
-              ),
-            );
-          case "pip":
-            return pipLayoutMedia$;
-        }
-      }),
-    );
+    switchMap((windowMode) => {
+      switch (windowMode) {
+        case "normal":
+          return layoutSwitchVm.layout$.pipe(
+            switchMap((layout) => {
+              switch (layout) {
+                case "grid":
+                  return oneOnOneDesktopLayoutMedia$.pipe(
+                    switchMap((oneOnOne) =>
+                      oneOnOne === null ? gridLayoutMedia$ : of(oneOnOne),
+                    ),
+                  );
+                case "spotlight":
+                  return spotlightExpanded$.pipe(
+                    switchMap((expanded) =>
+                      expanded
+                        ? spotlightExpandedLayoutMedia$(false)
+                        : spotlightLandscapeLayoutMedia$(false),
+                    ),
+                  );
+              }
+            }),
+          );
+        case "narrow":
+          return oneOnOneMobileLayoutMedia$.pipe(
+            switchMap((oneOnOne) =>
+              oneOnOne === null
+                ? combineLatest([grid$, spotlight$], (grid, spotlight) =>
+                    grid.length > smallMobileCallThreshold ||
+                    spotlight.some((vm) => vm.type === "screen share")
+                      ? spotlightPortraitLayoutMedia$
+                      : gridLayoutMedia$,
+                  ).pipe(switchAll())
+                : of(oneOnOne),
+            ),
+          );
+        case "flat":
+          return oneOnOneMobileLayoutMedia$.pipe(
+            switchMap((oneOnOne) =>
+              oneOnOne === null
+                ? layoutSwitchVm.layout$.pipe(
+                    switchMap((layout) => {
+                      switch (layout) {
+                        case "grid":
+                          // Yes, grid mode actually gets you a "spotlight" layout in
+                          // this window mode.
+                          return spotlightLandscapeLayoutMedia$(true);
+                        case "spotlight":
+                          return spotlightExpandedLayoutMedia$(true);
+                      }
+                    }),
+                  )
+                : of(oneOnOne),
+            ),
+          );
+        case "pip":
+          return pipLayoutMedia$;
+      }
+    }),
+  );
 
   const layoutMedia$ = scope.behavior<LayoutMedia>(
     combineLatest([rawLayoutMedia$, phoneVoiceMode$]).pipe(
@@ -1448,7 +1448,9 @@ export function createCallViewModel$(
   const showNameTags$ = scope.behavior<boolean>(
     layoutMedia$.pipe(
       switchMap((l) =>
-        l.type === "pip" || l.type === "one-on-one-mobile"
+        l.type === "pip" ||
+        l.type === "one-on-one-mobile" ||
+        l.type === "phone-voice"
           ? matrixRoomMembers$.pipe(
               map(
                 (members) =>
@@ -1691,7 +1693,7 @@ export function createCallViewModel$(
               pip = layout.pip;
               break;
             case "phone-voice":
-              [layout, newTiles] = phoneVoiceLayout(media, prevTiles);
+              [layout, newTiles] = makePhoneVoiceLayout(media, prevTiles);
               break;
             case "pip":
               [layout, newTiles] = pipLayout(media, prevTiles);
@@ -1895,18 +1897,9 @@ export function createCallViewModel$(
   const waitingForRemoteMedia$ = scope.behavior(
     userMedia$.pipe(
       switchMap((media) => {
-        const flags = media.map((m) => (m.local ? of(false) : m.waitingForMedia$));
-        return flags.length === 0
-          ? of(false)
-          : combineLatest(flags).pipe(map((waiting) => waiting.some(Boolean)));
-      }),
-    ),
-  );
-
-  const waitingForRemoteMedia$ = scope.behavior(
-    userMedia$.pipe(
-      switchMap((media) => {
-        const flags = media.map((m) => (m.local ? of(false) : m.waitingForMedia$));
+        const flags = media.map((m) =>
+          m.local ? of(false) : m.waitingForMedia$,
+        );
         return flags.length === 0
           ? of(false)
           : combineLatest(flags).pipe(map((waiting) => waiting.some(Boolean)));

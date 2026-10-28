@@ -7,6 +7,7 @@ Please see LICENSE in the repository root for full details.
 
 import { describe, expect, onTestFinished, test, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { BrowserRouter } from "react-router-dom";
 import {
   type FC,
   type ReactElement,
@@ -217,10 +218,7 @@ test("recoverable transport error: offers reconnect and resets on retry", async 
 
     return (
       <BrowserRouter>
-        <GroupCallErrorBoundary
-          recoveryActionHandler={reconnectCallback}
-          widget={null}
-        >
+        <GroupCallErrorBoundary recoveryActionHandler={reconnectCallback}>
           <TestComponent fail={failState} />
         </GroupCallErrorBoundary>
       </BrowserRouter>

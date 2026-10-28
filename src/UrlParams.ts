@@ -262,6 +262,8 @@ export interface UrlConfiguration {
   noiseSuppression?: boolean;
 
   callIntent?: RTCCallIntent;
+  /** Enables the phone-style voice layout and forces voice intent. */
+  phoneVoiceLayout: boolean;
 }
 
 // If you need to add a new flag to this interface, prefer a name that describes
@@ -573,6 +575,7 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     echoCancellation: parser.getFlagParam("echoCancellation", true),
     // Lets the host start a video call with the camera initially off without forcing phone voice.
     callIntent: parser.getEnumParam("callIntent", ["audio", "video"]),
+    phoneVoiceLayout: parser.getFlag("phoneVoiceLayout"),
   };
 
   // Log the final configuration for debugging purposes.
@@ -587,7 +590,7 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     configuration,
   );
 
-  return {
+  const merged = {
     ...properties,
     ...intentPreset,
     ...pickBy(configuration, (v?: unknown) => v !== undefined),

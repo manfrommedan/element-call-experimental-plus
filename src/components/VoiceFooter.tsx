@@ -23,11 +23,7 @@ import HeadphonesSolidIcon from "@vector-im/compound-design-tokens/assets/web/ic
 import VoiceCallIcon from "@vector-im/compound-design-tokens/assets/web/icons/voice-call";
 import VolumeOnSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/volume-on-solid";
 
-import {
-  EndCallButton,
-  MicButton,
-  VideoButton,
-} from "../button/Button";
+import { EndCallButton, MicButton, VideoButton } from "../button/Button";
 import { type CallViewModel } from "../state/CallViewModel/CallViewModel";
 import { type AudioOutputDeviceLabel } from "../state/MediaDevices";
 import { type MuteStates } from "../state/MuteStates";
@@ -65,7 +61,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const videoEnabled = useObservableEagerState(muteStates.video.enabled$);
   const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
   const participantCount = useObservableEagerState(vm.participantCount$);
-  const ringing = useObservableEagerState(vm.ringing$);
+  const ringing = useObservableEagerState(vm.ringingVm$) !== null;
   const connected = useObservableEagerState(vm.connected$);
   const reconnecting = useObservableEagerState(vm.reconnecting$);
   const waitingForMedia = useObservableEagerState(vm.waitingForRemoteMedia$);
@@ -461,8 +457,14 @@ function useOutgoingRingback(active: boolean): void {
         const gainNode = ctx.createGain();
         gainNode.connect(ctx.destination);
         gainNode.gain.setValueAtTime(0, start);
-        gainNode.gain.linearRampToValueAtTime(RINGBACK_GAIN, start + RINGBACK_RAMP_S);
-        gainNode.gain.setValueAtTime(RINGBACK_GAIN, start + duration - RINGBACK_RAMP_S);
+        gainNode.gain.linearRampToValueAtTime(
+          RINGBACK_GAIN,
+          start + RINGBACK_RAMP_S,
+        );
+        gainNode.gain.setValueAtTime(
+          RINGBACK_GAIN,
+          start + duration - RINGBACK_RAMP_S,
+        );
         gainNode.gain.linearRampToValueAtTime(0, start + duration);
         for (const frequency of RINGBACK_FREQUENCIES_HZ) {
           const osc = ctx.createOscillator();

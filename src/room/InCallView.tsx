@@ -654,7 +654,7 @@ export const InCallView: FC<InCallViewProps> = ({
   // Only hide the settings button if we have an AppBar header and we are showing the header
   const footer = phoneVoiceMode ? (
     <div className={styles.footerSlot}>
-      <VoiceFooter vm={vm} muteStates={props.muteStates} hidden={!showFooter} />
+      <VoiceFooter vm={vm} muteStates={muteStates} hidden={!showFooter} />
     </div>
   ) : (
     footerVm !== null && (
@@ -693,7 +693,10 @@ export const InCallView: FC<InCallViewProps> = ({
       {renderContent()}
       <CallEventAudioRenderer vm={vm} muted={muteAllAudio} />
       <ReactionsAudioRenderer vm={vm} muted={muteAllAudio} />
-      <RingingAudioRenderer vm={ringingVm} muted={muteAllAudio || phoneVoiceMode} />
+      <RingingAudioRenderer
+        vm={ringingVm}
+        muted={muteAllAudio || phoneVoiceMode}
+      />
       {reconnectingToast}
       {screenShareToast}
       {earpieceOverlay}
