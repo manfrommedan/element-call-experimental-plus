@@ -65,7 +65,13 @@ Please see LICENSE in the repository root for full details.
    "Calling…" treatment. Disabled when the user prefers reduced motion. */
 .timerStatus {
   color: var(--cpd-color-text-secondary);
+  font: var(--cpd-font-body-md-regular);
   animation: timerStatusPulse 1.6s ease-in-out infinite;
+}
+
+.timerStatus .statusIcon {
+  inline-size: 16px;
+  block-size: 16px;
 }
 
 @keyframes timerStatusPulse {

@@ -19,7 +19,7 @@ import { type Behavior, constant } from "../state/Behavior";
 import type { ObservableScope } from "../state/ObservableScope";
 import { type MuteStates } from "../state/MuteStates";
 import { createStaticViewModel, type ViewModel } from "../state/ViewModel";
-import { getUrlParams, HeaderStyle } from "../UrlParams";
+import { HeaderStyle } from "../UrlParams";
 import { platform } from "../Platform";
 import { type FooterSnapshot } from "./CallFooter";
 
@@ -138,6 +138,8 @@ function buildDeviceBehaviors(
  * @param mediaDevices - Available and selected input devices.
  * @param reactionIdentifier - The local user's reaction identifier string, or
  *   undefined when reactions are not supported (hides the reaction button).
+ * @param options - `showControls`: whether the call controls should be shown.
+ *   `header`: the style of header, which decides whether to show the logo.
  */
 export function createCallFooterViewModel(
   scope: ObservableScope,
@@ -145,8 +147,9 @@ export function createCallFooterViewModel(
   muteStates: MuteStates,
   mediaDevices: MediaDevices,
   reactionIdentifier: string | undefined,
+  options: { showControls: boolean; header: HeaderStyle },
 ): ViewModel<FooterSnapshot> {
-  const { showControls, header: headerStyle } = getUrlParams();
+  const { showControls, header: headerStyle } = options;
   const showLogo = headerStyle === HeaderStyle.Standard;
 
   const isPip$ = scope.behavior(
@@ -161,6 +164,7 @@ export function createCallFooterViewModel(
     // candidat to move into the FooterViewModel
     showFooter$: callModel.showFooter$,
     hideControls$: constant(!showControls),
+    showModals$: callModel.showModals$,
     asOverlay$: callModel.edgeToEdge$,
     buttonSize$: scope.behavior(
       isPip$.pipe(map<boolean, "md" | "lg">((pip) => (pip ? "md" : "lg"))),
@@ -168,14 +172,12 @@ export function createCallFooterViewModel(
 
     openSettings$: scope.behavior(
       combineLatest([
-        isPip$,
+        callModel.showModals$,
         callModel.showHeader$,
         callModel.setSettingsOpen$,
       ]).pipe(
-        map(([isPip, showHeader, setSettingsOpen]) =>
-          !isPip &&
-          !(headerStyle === HeaderStyle.AppBar && showHeader) &&
-          showControls
+        map(([showModals, showHeader, setSettingsOpen]) =>
+          showModals && headerStyle !== HeaderStyle.AppBar && showControls
             ? (): void => setSettingsOpen(true)
             : undefined,
         ),
@@ -184,14 +186,7 @@ export function createCallFooterViewModel(
 
     showLogo$: scope.behavior(isPip$.pipe(map((isPip) => showLogo && !isPip))),
 
-    layoutMode$: callModel.gridMode$,
-    setLayoutMode$: scope.behavior(
-      isPip$.pipe(
-        map((isPip) =>
-          !isPip && showControls ? callModel.setGridMode : undefined,
-        ),
-      ),
-    ),
+    layoutSwitchVm$: callModel.layoutSwitchVm$,
 
     sharingScreen$: callModel.sharingScreen$,
     toggleScreenSharing$: constant(callModel.toggleScreenSharing ?? undefined),
@@ -248,21 +243,20 @@ export function createLobbyFooterViewModel(
       showLogo,
       hideControls: false,
       asOverlay: false,
+      showModals: true,
       buttonSize: "lg",
-      showLayoutSwitcher: false,
       openSettings,
       hangup,
       debugTileLayout: false,
       showFooter: true,
       toggleAudio: undefined,
       toggleVideo: undefined,
-      setLayoutMode: undefined,
       toggleScreenSharing: undefined,
       audioEnabled: undefined,
       audioBusy: false,
       videoEnabled: undefined,
       videoBusy: false,
-      layoutMode: undefined,
+      layoutSwitchVm: null,
       sharingScreen: false,
       audioOutputSwitcher: undefined,
       reactionIdentifier: undefined,

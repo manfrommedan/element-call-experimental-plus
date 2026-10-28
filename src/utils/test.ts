@@ -63,6 +63,7 @@ import { type MediaDevices } from "../state/MediaDevices";
 import { type Behavior, constant } from "../state/Behavior";
 import { ObservableScope } from "../state/ObservableScope";
 import { MuteStates } from "../state/MuteStates";
+import { nullHostBridge } from "../HostBridge";
 import {
   createLocalUserMedia,
   type LocalUserMediaViewModel,
@@ -237,7 +238,7 @@ export function mockRtcMembership(
       fociPreferred: [exampleTransport],
       focusActive: {
         type: "livekit" as const,
-        focus_selection: "oldest_membership" as const,
+        focus_selection: "multi_sfu" as const,
       },
       callId: "",
       membership: {},
@@ -439,6 +440,12 @@ export function mockConfig(
   const spy = vi.spyOn(Config, "get").mockReturnValue({
     ...DEFAULT_CONFIG,
     ...config,
+    default_server_config: {
+      ["m.homeserver"]: {
+        base_url: "http://localhost:8008",
+        server_name: "localhost",
+      },
+    },
   });
   // simulate loading the config
   vi.spyOn(Config, "init").mockResolvedValue(void 0);
@@ -457,9 +464,6 @@ export class MockRTCSession extends TypedEventEmitter<
     session.reemitEncryptionKeys = vi
       .fn<() => void>()
       .mockReturnValue(undefined);
-    session.getOldestMembership = vi
-      .fn<() => CallMembership | undefined>()
-      .mockReturnValue(this.memberships[0]);
 
     return session;
   }
@@ -483,6 +487,8 @@ export class MockRTCSession extends TypedEventEmitter<
   public isJoined(): boolean {
     return this.joined;
   }
+
+  public isKeyRotationSuppressed = false;
 
   public withMemberships(
     rtcMembers$: Behavior<Partial<CallMembership>[]>,
@@ -572,10 +578,12 @@ export function mockMuteStates(
   joined$: Observable<boolean> = of(true),
 ): MuteStates {
   const observableScope = new ObservableScope();
-  return new MuteStates(observableScope, mockMediaDevices({}), {
-    audioEnabled: false,
-    videoEnabled: false,
-  });
+  return new MuteStates(
+    observableScope,
+    mockMediaDevices({}),
+    { audioEnabled: false, videoEnabled: false },
+    nullHostBridge,
+  );
 }
 
 export class MockConnection extends Connection {

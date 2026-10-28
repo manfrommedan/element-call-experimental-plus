@@ -26,10 +26,11 @@ import { logger as rootLogger } from "matrix-js-sdk/lib/logger";
 import { useTranslation } from "react-i18next";
 
 import { Header, LeftNav, RightNav, RoomHeaderInfo } from "../Header";
-import { platform } from "../Platform";
 import { HeaderStyle, useUrlParams } from "../UrlParams";
 import { useCallViewKeyboardShortcuts } from "../useCallViewKeyboardShortcuts";
-import { widget } from "../widget";
+import { useHostBridge } from "../HostBridge.ts";
+import { useRootElement } from "../RootElementContext";
+import { observeElementSize$ } from "../utils/elementSize";
 import styles from "./InCallView.module.css";
 import { GridTile } from "../tile/GridTile";
 import { SettingsModal, defaultSettingsTab } from "../settings/SettingsModal";
@@ -42,17 +43,17 @@ import { type MatrixInfo } from "./VideoPreview";
 import { InviteButton } from "../button/InviteButton";
 import {
   type CallViewModel,
+  callViewModelOptionsFromParams,
   createCallViewModel$,
 } from "../state/CallViewModel/CallViewModel.ts";
 import { Grid, type TileProps } from "../grid/Grid";
-import { useInitial } from "../useInitial";
 import { SpotlightTile } from "../tile/SpotlightTile";
 import { type EncryptionSystem } from "../e2ee/sharedKeyManagement";
 import { E2eeType } from "../e2ee/e2eeType";
 import { makeGridLayout } from "../grid/GridLayout";
 import { type CallLayoutOutputs } from "../grid/CallLayout";
-import { makeOneOnOneLandscapeLayout } from "../grid/OneOnOneLandscapeLayout";
-import { makeOneOnOnePortraitLayout } from "../grid/OneOnOnePortraitLayout";
+import { makeOneOnOneDesktopLayout } from "../grid/OneOnOneDesktopLayout";
+import { makeOneOnOneMobileLayout } from "../grid/OneOnOneMobileLayout";
 import { makePhoneVoiceLayout } from "../grid/PhoneVoiceLayout";
 import { makeSpotlightExpandedLayout } from "../grid/SpotlightExpandedLayout";
 import { makeSpotlightLandscapeLayout } from "../grid/SpotlightLandscapeLayout";
@@ -71,23 +72,27 @@ import { LivekitRoomAudioRenderer } from "../livekit/MatrixAudioRenderer.tsx";
 import { muteAllAudio$ } from "../state/MuteAllAudioModel.ts";
 import { useMediaDevices } from "../MediaDevicesContext.ts";
 import { EarpieceOverlay } from "./EarpieceOverlay.tsx";
-import { useAppBarHidden, useAppBarSecondaryButton } from "../AppBar.tsx";
+import {
+  useAppBarHidden,
+  useAppBarSecondaryButton,
+  useAppBarSubtitle,
+} from "../AppBar.tsx";
 import { useBehavior } from "../useBehavior.ts";
+import { constant } from "../state/Behavior.ts";
 import { Toast } from "../Toast.tsx";
 import overlayStyles from "../Overlay.module.css";
-import { prefetchSounds } from "../soundUtils";
-import { useAudioContext } from "../useAudioContext";
-import ringtoneMp3 from "../sound/ringtone.mp3?url";
-import ringtoneOgg from "../sound/ringtone.ogg?url";
 import { useTrackProcessorObservable$ } from "../livekit/TrackProcessorContext.tsx";
 import { type Layout } from "../state/layout-types.ts";
 import { ObservableScope } from "../state/ObservableScope.ts";
-import { useLatest } from "../useLatest.ts";
 import { CallFooter, type FooterSnapshot } from "../components/CallFooter.tsx";
 import { VoiceFooter } from "../components/VoiceFooter.tsx";
 import { SettingsIconButton } from "../button/Button.tsx";
 import { createCallFooterViewModel } from "../components/CallFooterViewModel.tsx";
+import { createDeveloperSettingsTabViewModel } from "../settings/DeveloperSettingsTabViewModel.ts";
+import { type DeveloperSettingsSnapshot } from "../settings/DeveloperSettingsTab.tsx";
 import { type ViewModel } from "../state/ViewModel.ts";
+import { RingingStatus } from "../tile/RingingStatus.tsx";
+import { RingingAudioRenderer } from "./RingingAudioRenderer.tsx";
 
 declare module "react" {
   interface CSSProperties {
@@ -96,11 +101,9 @@ declare module "react" {
   }
 }
 
-const logger = rootLogger.getChild("[InCallView]");
-
 export interface ActiveCallProps extends Omit<
   InCallViewProps,
-  "vm" | "livekitRoom" | "connState" | "footerVm"
+  "vm" | "livekitRoom" | "connState" | "footerVm" | "developerSettingsVm"
 > {
   e2eeSystem: EncryptionSystem;
   // TODO refactor those reasons into an enum
@@ -114,11 +117,18 @@ export const ActiveCall: FC<ActiveCallProps> = (props) => {
   const [footerVm, setFooterVm] = useState<ViewModel<FooterSnapshot> | null>(
     null,
   );
+  const [developerSettingsVm, setDeveloperSettingsVm] =
+    useState<ViewModel<DeveloperSettingsSnapshot> | null>(null);
+
   const urlParams = useUrlParams();
+  const hostBridge = useHostBridge();
   const mediaDevices = useMediaDevices();
   const trackProcessorState$ = useTrackProcessorObservable$();
+  // The element we have to draw the call in: the page, or the container a host
+  // gave us. Its size, not the window's, decides how the call is laid out.
+  const rootElement = useRootElement();
   useEffect(() => {
-    logger.info("START CALL VIEW SCOPE");
+    rootLogger.info("START CALL VIEW SCOPE");
     const scope = new ObservableScope();
     const reactionsReader = new ReactionsReader(scope, props.rtcSession);
     const { autoLeaveWhenOthersLeft, waitForCallPickup, sendNotificationType } =
@@ -131,10 +141,15 @@ export const ActiveCall: FC<ActiveCallProps> = (props) => {
       mediaDevices,
       props.muteStates,
       {
+        ...callViewModelOptionsFromParams(urlParams),
         encryptionSystem: props.e2eeSystem,
+        hostBridge,
         autoLeaveWhenOthersLeft,
         waitForCallPickup: waitForCallPickup && sendNotificationType === "ring",
-        matrixRTCMode$: matrixRTCModeSetting.value$,
+        // We merely sample the current mode here, so the user would need to
+        // manually rejoin to switch to a different one.
+        matrixRTCMode: matrixRTCModeSetting.value$.value,
+        windowSize$: scope.behavior(observeElementSize$(rootElement)),
       },
       reactionsReader.raisedHands$,
       reactionsReader.reactions$,
@@ -156,9 +171,11 @@ export const ActiveCall: FC<ActiveCallProps> = (props) => {
     props.e2eeSystem,
     props.onLeft,
     urlParams,
+    hostBridge,
     mediaDevices,
     trackProcessorState$,
     props.client,
+    rootElement,
   ]);
 
   useEffect(() => {
@@ -171,8 +188,10 @@ export const ActiveCall: FC<ActiveCallProps> = (props) => {
       props.muteStates,
       mediaDevices,
       `${props.client.getUserId()}:${props.client.getDeviceId()}`,
+      { showControls: urlParams.showControls, header: urlParams.header },
     );
     setFooterVm(footerVm);
+    setDeveloperSettingsVm(createDeveloperSettingsTabViewModel(scope, vm));
 
     return (): void => {
       scope.end();
@@ -192,10 +211,16 @@ export const ActiveCall: FC<ActiveCallProps> = (props) => {
 
   if (vm === null) return null;
   if (footerVm === null) return null;
+  if (developerSettingsVm === null) return null;
 
   return (
     <ReactionsSenderProvider vm={vm} rtcSession={props.rtcSession}>
-      <InCallView {...props} vm={vm} footerVm={footerVm} />
+      <InCallView
+        {...props}
+        vm={vm}
+        footerVm={footerVm}
+        developerSettingsVm={developerSettingsVm}
+      />
     </ReactionsSenderProvider>
   );
 };
@@ -204,6 +229,7 @@ export interface InCallViewProps {
   client: MatrixClient;
   vm: CallViewModel;
   footerVm: ViewModel<FooterSnapshot>;
+  developerSettingsVm: ViewModel<DeveloperSettingsSnapshot>;
   matrixInfo: MatrixInfo;
   rtcSession: MatrixRTCSession;
   matrixRoom: MatrixRoom;
@@ -215,12 +241,15 @@ export const InCallView: FC<InCallViewProps> = ({
   client,
   vm,
   footerVm,
+  developerSettingsVm,
   matrixInfo,
   matrixRoom,
   muteStates,
   onShareClick,
 }) => {
+  const logger = rootLogger.getChild("[InCallView]");
   const { t } = useTranslation();
+  const hostBridge = useHostBridge();
   const { sendReaction, toggleRaisedHand } = useReactionsSender();
 
   useWakeLock();
@@ -240,23 +269,23 @@ export const InCallView: FC<InCallViewProps> = ({
   // Merge the refs so they can attach to the same element
   const containerRef = useMergedRefs(containerRef1, containerRef2);
 
+  // The fixed grid is positioned against Element Call's root, so offsets
+  // handed to it have to be measured from there rather than from the
+  // viewport. Standalone the two are the same, the root being the page; for a
+  // component the root sits wherever the host put it, and measuring from the
+  // viewport would push the grid down by that much again. Taken at the same
+  // moment as `bounds`, so that the two agree however the host has scrolled.
+  const rootElement = useRootElement();
+  const rootTop = useMemo(
+    () => rootElement.getBoundingClientRect().top,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rootElement, bounds],
+  );
+  const topWithinRoot = bounds.top - rootTop;
+
   const { showControls, header: headerStyle } = useUrlParams();
 
   const muteAllAudio = useBehavior(muteAllAudio$);
-
-  // Preload a waiting and decline sounds
-  const pickupPhaseSoundCache = useInitial(async () => {
-    return prefetchSounds({
-      waiting: { mp3: ringtoneMp3, ogg: ringtoneOgg },
-    });
-  });
-
-  const pickupPhaseAudio = useAudioContext({
-    sounds: pickupPhaseSoundCache,
-    latencyHint: "interactive",
-    muted: muteAllAudio,
-  });
-  const latestPickupPhaseAudio = useLatest(pickupPhaseAudio);
   const toggleAudio = useBehavior(muteStates.audio.toggle$);
   const toggleVideo = useBehavior(muteStates.video.toggle$);
   const setAudioEnabled = useBehavior(muteStates.audio.setEnabled$);
@@ -269,17 +298,19 @@ export const InCallView: FC<InCallViewProps> = ({
     () => void toggleRaisedHand(),
   );
 
+  const ringingVm = useBehavior(vm.ringingVm$);
   const phoneVoiceMode = useBehavior(vm.phoneVoiceMode$);
-
-  const ringing = useBehavior(vm.ringing$);
+  const phoneVoiceLandscape = useBehavior(vm.phoneVoiceLandscape$);
   const audioParticipants = useBehavior(vm.livekitRoomItems$);
   const participantCount = useBehavior(vm.participantCount$);
   const reconnecting = useBehavior(vm.reconnecting$);
+  const screenShareError = useBehavior(vm.screenShareError$);
   const layout = useBehavior(vm.layout$);
-  const windowMode = useBehavior(vm.windowMode$);
   const edgeToEdge = useBehavior(vm.edgeToEdge$);
+  const overflowing = useBehavior(vm.overflowing$);
   const showNameTags = useBehavior(vm.showNameTags$);
   const showHeader = useBehavior(vm.showHeader$);
+  const showModals = useBehavior(vm.showModals$);
   const settingsOpen = useBehavior(vm.settingsOpen$);
   const setSettingsOpen = useBehavior(vm.setSettingsOpen$);
   const earpieceMode = useBehavior(vm.earpieceMode$);
@@ -291,22 +322,6 @@ export const InCallView: FC<InCallViewProps> = ({
     logger.debug("fatalCallError stop rendering", fatalCallError);
     throw fatalCallError;
   }
-
-  // While ringing, loop the ringtone (VoiceFooter has its own dial tone).
-  useEffect((): void | (() => void) => {
-    const audio = latestPickupPhaseAudio.current;
-    if (ringing && audio && !phoneVoiceMode) {
-      const endSound = audio.playSoundLooping(
-        "waiting",
-        audio.soundDuration["waiting"] ?? 1,
-      );
-      return () => {
-        void endSound().catch((e) => {
-          logger.error("Failed to stop ringing sound", e);
-        });
-      };
-    }
-  }, [ringing, latestPickupPhaseAudio, phoneVoiceMode]);
 
   // iOS Safari doesn't reliably fire `click` on plain <div>s, so we listen
   // for `pointerup` instead. Scrolls end in `pointercancel`, not `pointerup`,
@@ -335,14 +350,14 @@ export const InCallView: FC<InCallViewProps> = ({
 
   const openProfile = useMemo(
     () =>
-      // Profile settings are unavailable in widget mode
-      widget === null
+      // The profile is only ours to edit when the account is ours
+      hostBridge.supportsProfileChanges
         ? (): void => {
             setSettingsTab("profile");
             setSettingsOpen(true);
           }
         : null,
-    [setSettingsTab, setSettingsOpen],
+    [setSettingsTab, setSettingsOpen, hostBridge],
   );
 
   const [headerRef, headerBounds] = useMeasure();
@@ -369,6 +384,11 @@ export const InCallView: FC<InCallViewProps> = ({
   );
 
   useAppBarHidden(!showHeader);
+  useAppBarSubtitle(
+    ringingVm && !phoneVoiceMode && vm.ringingStatusLocation === "app_bar" && (
+      <RingingStatus vm={ringingVm} />
+    ),
+  );
 
   let header: ReactNode = null;
   switch (headerStyle) {
@@ -414,6 +434,21 @@ export const InCallView: FC<InCallViewProps> = ({
       );
   }
 
+  const onDismissScreenShareToast = useCallback(
+    () => vm.dismissScreenShareError(),
+    [vm],
+  );
+  const screenShareToast = (
+    <Toast
+      onDismiss={onDismissScreenShareToast}
+      open={screenShareError !== null}
+      autoDismiss={5000}
+      modal={false}
+    >
+      {t("error.screen_share_failed")}
+    </Toast>
+  );
+
   // The reconnecting toast cannot be dismissed
   const onDismissReconnectingToast = useCallback(() => {}, []);
   // We need to use a non-modal toast to avoid trapping focus within the toast.
@@ -444,8 +479,7 @@ export const InCallView: FC<InCallViewProps> = ({
 
   // If the reconnecting toast or earpiece overlay obscures the media tiles, we
   // need to remove them from the accessibility tree and block focus.
-  const contentObscured =
-    reconnecting || (earpieceMode && !phoneVoiceMode);
+  const contentObscured = reconnecting || (earpieceMode && !phoneVoiceMode);
 
   const Tile = useMemo(
     () =>
@@ -464,6 +498,13 @@ export const InCallView: FC<InCallViewProps> = ({
         );
         const showSpeakingIndicators = useBehavior(vm.showSpeakingIndicators$);
         const showNameTags = useBehavior(vm.showNameTags$);
+        const showRingingStatus =
+          !phoneVoiceMode && vm.ringingStatusLocation === "tile";
+        const showOutline = useBehavior(
+          model instanceof GridTileViewModel
+            ? model.showOutline$
+            : constant(false),
+        );
 
         return model instanceof GridTileViewModel ? (
           <GridTile
@@ -476,6 +517,9 @@ export const InCallView: FC<InCallViewProps> = ({
             style={style}
             showSpeakingIndicators={showSpeakingIndicators}
             showNameTags={showNameTags}
+            showRingingStatus={showRingingStatus}
+            phoneVoiceMode={phoneVoiceMode}
+            showOutline={showOutline}
             focusable={!contentObscured}
           />
         ) : (
@@ -488,13 +532,16 @@ export const InCallView: FC<InCallViewProps> = ({
             targetHeight={targetHeight}
             showIndicators={showSpotlightIndicators}
             showNameTags={showNameTags}
+            showRingingStatus={showRingingStatus}
+            phoneVoiceMode={phoneVoiceMode}
             focusable={!contentObscured}
             className={classNames(className, styles.tile)}
+            itemClassName={styles.spotlightItem}
             style={style}
           />
         );
       },
-    [vm, openProfile, contentObscured],
+    [vm, openProfile, contentObscured, phoneVoiceMode],
   );
 
   const layouts = useMemo(() => {
@@ -504,8 +551,8 @@ export const InCallView: FC<InCallViewProps> = ({
       "spotlight-landscape": makeSpotlightLandscapeLayout(inputs),
       "spotlight-portrait": makeSpotlightPortraitLayout(inputs),
       "spotlight-expanded": makeSpotlightExpandedLayout(inputs),
-      "one-on-one-landscape": makeOneOnOneLandscapeLayout(inputs),
-      "one-on-one-portrait": makeOneOnOnePortraitLayout(inputs),
+      "one-on-one-desktop": makeOneOnOneDesktopLayout(inputs),
+      "one-on-one-mobile": makeOneOnOneMobileLayout(inputs),
       "phone-voice": makePhoneVoiceLayout(inputs),
     };
   }, [gridBoundsObservable$]);
@@ -515,7 +562,9 @@ export const InCallView: FC<InCallViewProps> = ({
     if (layout.type === "pip") {
       return (
         <SpotlightTile
-          className={classNames(styles.tile, styles.maximised)}
+          className={styles.tile}
+          itemClassName={styles.spotlightItem}
+          data-maximised
           vm={layout.spotlight}
           expanded
           onToggleExpanded={null}
@@ -523,6 +572,10 @@ export const InCallView: FC<InCallViewProps> = ({
           targetHeight={gridBounds.height}
           showIndicators={false}
           showNameTags={showNameTags}
+          showRingingStatus={
+            !phoneVoiceMode && vm.ringingStatusLocation === "tile"
+          }
+          phoneVoiceMode={phoneVoiceMode}
           focusable={!contentObscured}
           aria-hidden={contentObscured}
         />
@@ -536,7 +589,7 @@ export const InCallView: FC<InCallViewProps> = ({
         className={styles.fixedGrid}
         style={{
           // If not edge-to-edge, consume the header insets right here.
-          insetBlockStart: edgeToEdge ? 0 : bounds.top + headerBounds.height,
+          insetBlockStart: edgeToEdge ? 0 : topWithinRoot + headerBounds.height,
           height: edgeToEdge ? "100%" : gridBounds.height,
           // If edge-to-edge, compute new safe area insets that account for the
           // header and footer, passing them down to the tiles.
@@ -547,7 +600,7 @@ export const InCallView: FC<InCallViewProps> = ({
                 // itself. Otherwise account for the safe area and header size
                 // as part of the InCallView.
                 headerStyle === HeaderStyle.AppBar
-                ? `${bounds.top}px`
+                ? `${topWithinRoot}px`
                 : `calc(env(safe-area-inset-top) + ${headerBounds.height}px)`
               : undefined,
           "--call-view-safe-area-inset-bottom":
@@ -606,9 +659,13 @@ export const InCallView: FC<InCallViewProps> = ({
 
   // Only hide the settings button if we have an AppBar header and we are showing the header
   const footer = phoneVoiceMode ? (
-    <VoiceFooter vm={vm} muteStates={muteStates} hidden={!showFooter} />
+    <div className={styles.footerSlot}>
+      <VoiceFooter vm={vm} muteStates={muteStates} hidden={!showFooter} />
+    </div>
   ) : (
-    footerVm !== null && <CallFooter ref={footerRef} vm={footerVm} />
+    footerVm !== null && (
+      <CallFooter className={styles.footer} ref={footerRef} vm={footerVm} />
+    )
   );
   const allConnections = useBehavior(vm.allConnections$);
 
@@ -617,14 +674,14 @@ export const InCallView: FC<InCallViewProps> = ({
     // and the footer is also viewable by moving focus into it, so this is fine.
     // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
-      className={styles.inRoom}
-      // CSS-driven landscape split: spotlight | VoiceFooter on mobile flat.
-      data-phone-voice-landscape={
-        phoneVoiceMode && windowMode === "flat" && platform !== "desktop"
-          ? "true"
-          : undefined
-      }
+      className={classNames(styles.inRoom, {
+        [styles.overflowing]: overflowing,
+      })}
       ref={containerRef}
+      // Which layout the call has settled on, for tests and for anyone
+      // wondering why the call looks the way it does at the size it was given
+      data-layout={layout.type}
+      data-phone-voice-landscape={phoneVoiceLandscape ? "true" : undefined}
       onPointerUp={onViewPointerUp}
       onPointerMove={onPointerMove}
       onPointerOut={onPointerOut}
@@ -642,11 +699,16 @@ export const InCallView: FC<InCallViewProps> = ({
       {renderContent()}
       <CallEventAudioRenderer vm={vm} muted={muteAllAudio} />
       <ReactionsAudioRenderer vm={vm} muted={muteAllAudio} />
+      <RingingAudioRenderer
+        vm={ringingVm}
+        muted={muteAllAudio || phoneVoiceMode}
+      />
       {reconnectingToast}
+      {screenShareToast}
       {earpieceOverlay}
       <ReactionsOverlay vm={vm} />
-      <div className={styles.footerSlot}>{footer}</div>
-      {layout.type !== "pip" && (
+      {footer}
+      {showModals && (
         <>
           <RageshakeRequestModal {...rageshakeRequestModalProps} />
           <SettingsModal
@@ -656,6 +718,7 @@ export const InCallView: FC<InCallViewProps> = ({
             onDismiss={(): void => setSettingsOpen(false)}
             tab={settingsTab}
             onTabChange={setSettingsTab}
+            developerSettingsVm={developerSettingsVm}
             livekitRooms={allConnections
               .getConnections()
               .map((connectionItem) => ({

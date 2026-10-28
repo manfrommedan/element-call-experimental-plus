@@ -7,26 +7,11 @@ Please see LICENSE in the repository root for full details.
 
 import {
   type CallMembership,
-  isLivekitTransportConfig,
   type LivekitTransportConfig,
 } from "matrix-js-sdk/lib/matrixrtc";
 import { type MatrixClient } from "matrix-js-sdk";
-import {
-  catchError,
-  combineLatest,
-  distinctUntilChanged,
-  first,
-  from,
-  map,
-  merge,
-  type Observable,
-  of,
-  startWith,
-  switchMap,
-  tap,
-} from "rxjs";
-import { logger as rootLogger } from "matrix-js-sdk/lib/logger";
-import { AutoDiscovery } from "matrix-js-sdk/lib/autodiscovery";
+import { distinctUntilChanged, from, map, of, switchMap } from "rxjs";
+import { logger as rootLogger, type Logger } from "matrix-js-sdk/lib/logger";
 import { type CallMembershipIdentityParts } from "matrix-js-sdk/lib/matrixrtc/EncryptionManager";
 
 import { type Behavior } from "../../Behavior.ts";
@@ -45,33 +30,21 @@ import {
 import { areLivekitTransportsEqual } from "../remoteMembers/MatrixLivekitMembers.ts";
 import { customLivekitUrl } from "../../../settings/settings.ts";
 import { RtcTransportAutoDiscovery } from "./RtcTransportAutoDiscovery.ts";
-
-const logger = rootLogger.getChild("[LocalTransport]");
+import { type MatrixRTCMode } from "../../../config/ConfigOptions.ts";
 
 /*
  * It figures out “which LiveKit focus URL/alias the local user should use,”
- * optionally aligning with the oldest member, and ensures the SFU path is primed
- * before advertising that choice.
+ * and ensures the SFU path is primed before advertising that choice.
  */
 interface Props {
   scope: ObservableScope;
   ownMembershipIdentity: CallMembershipIdentityParts;
   memberships$: Behavior<Epoch<CallMembership[]>>;
-  client: Pick<
-    MatrixClient,
-    "getDomain" | "baseUrl" | "_unstable_getRTCTransports" | "getAccessToken"
-  > &
+  client: Pick<MatrixClient, "getDomain" | "_unstable_getRTCTransports"> &
     OpenIDClientParts;
   // Used by the jwt service to create the livekit room and compute the livekit alias.
   roomId: string;
-  useOldestMember: boolean;
-  forceJwtEndpoint: JwtEndpointVersion;
-  delayId$: Behavior<string | null>;
-}
-
-export enum JwtEndpointVersion {
-  Legacy = "legacy",
-  Matrix_2_0 = "matrix_2_0",
+  matrixRTCMode: MatrixRTCMode;
 }
 
 // TODO livekit_alias-cleanup
@@ -122,8 +95,6 @@ export interface LocalTransport {
 /**
  * Connects to the JWT service and determines the transports that the local member should use.
  *
- * @prop useOldestMember Whether to use the same transport as the oldest member.
- * This will only update once the first oldest member appears. Will not recompute if the oldest member leaves.
  * @prop useOldJwtEndpoint Whether to set forceOldJwtEndpoint on the returned transport and to use the old JWT endpoint.
  * This is used when the connection manager needs to know if it has to use the legacy endpoint which implies a string concatenated rtcBackendIdentity.
  * (which is expected for non sticky event based rtc member events)
@@ -136,18 +107,13 @@ export const createLocalTransport$ = ({
   ownMembershipIdentity,
   client,
   roomId,
-  useOldestMember,
-  forceJwtEndpoint,
-  delayId$,
+  matrixRTCMode,
 }: Props): LocalTransport => {
-  // The LiveKit transport in use by the oldest RTC membership. `null` when the
-  // oldest member has no such transport.
-  const oldestMemberTransport$ = observerOldestMembership$(scope, memberships$);
+  const logger = rootLogger.getChild("[LocalTransport]");
 
   const transportDiscovery = new RtcTransportAutoDiscovery({
     client: client,
     resolvedConfig: Config.get(),
-    wellKnownFetcher: AutoDiscovery.getRawClientConfig.bind(AutoDiscovery),
     logger: logger,
   });
 
@@ -156,40 +122,37 @@ export const createLocalTransport$ = ({
     transportDiscovery.discoverPreferredTransport(),
   );
 
-  const preferredConfig$ = customLivekitUrl.value$
-    .pipe(
-      switchMap((customUrl) => {
-        if (customUrl) {
-          return of({
-            type: "livekit",
-            livekit_service_url: customUrl,
-          } as LivekitTransportConfig);
-        } else {
-          return discoveredTransport$;
-        }
-      }),
-    )
-    .pipe(
-      map((config) => {
-        if (!config) {
-          // Bubbled up from the preferredConfig$ observable.
-          throw new MatrixRTCTransportMissingError(client.getDomain() ?? "");
-        }
-        return config;
-      }),
-      distinctUntilChanged(areLivekitTransportsEqual),
-    );
+  const preferredConfig$ = customLivekitUrl.value$.pipe(
+    switchMap((customUrl) => {
+      if (customUrl) {
+        return of({
+          type: "livekit",
+          livekit_service_url: customUrl,
+        } as LivekitTransportConfig);
+      } else {
+        return discoveredTransport$;
+      }
+    }),
+    map((config) => {
+      if (!config) {
+        // Bubbled up from the preferredConfig$ observable.
+        throw new MatrixRTCTransportMissingError(client.getDomain() ?? "");
+      }
+      return config;
+    }),
+    distinctUntilChanged(areLivekitTransportsEqual),
+  );
 
-  const preferredTransport$ = combineLatest([preferredConfig$, delayId$]).pipe(
-    switchMap(async ([transport, delayId]) => {
+  const preferredTransport$ = preferredConfig$.pipe(
+    switchMap(async (transport) => {
       try {
         return await doOpenIdAndJWTFromUrl(
           transport,
-          forceJwtEndpoint,
+          matrixRTCMode,
           ownMembershipIdentity,
           roomId,
           client,
-          delayId ?? undefined,
+          logger,
         );
       } catch (e) {
         logger.error(
@@ -201,18 +164,6 @@ export const createLocalTransport$ = ({
     }),
   );
 
-  if (useOldestMember) {
-    return observeLocalTransportForOldestMembership(
-      scope,
-      oldestMemberTransport$,
-      preferredTransport$,
-      client,
-      ownMembershipIdentity,
-      roomId,
-    );
-  }
-
-  // --- Multi-SFU mode ---
   // Always publish on and advertise the preferred transport.
   return {
     advertised$: scope.behavior(
@@ -222,63 +173,9 @@ export const createLocalTransport$ = ({
       ),
       null,
     ),
-    active$: scope.behavior(
-      preferredTransport$.pipe(
-        // XXX: WORK AROUND due to a reconnection glitch.
-        // To remove when we have a proper way to refresh the delegation event ID without refreshing
-        // the whole credentials.
-        // We deliberately hide any changes to the SFU config because we
-        // do not want the app to reconnect whenever the JWT
-        // token changes due to us delegating a new delayed event. The
-        // initial SFU config for the transport is all the app needs.
-        distinctUntilChanged((prev, next) =>
-          areLivekitTransportsEqual(prev.transport, next.transport),
-        ),
-      ),
-      null,
-    ),
+    active$: scope.behavior(preferredTransport$, null),
   };
 };
-
-/**
- * Observes the oldest member in the room and returns the transport that it uses if it is a livekit transport.
- * @param scope - The observable scope.
- * @param memberships$ - The observable of the call's memberships.'
- */
-function observerOldestMembership$(
-  scope: ObservableScope,
-  memberships$: Behavior<Epoch<CallMembership[]>>,
-): Behavior<LivekitTransportConfig | null> {
-  return scope.behavior<LivekitTransportConfig | null>(
-    memberships$.pipe(
-      map((memberships) => {
-        const oldestMember = memberships.value[0];
-        if (oldestMember === undefined) {
-          logger.info("Oldest member: not found");
-          return null;
-        }
-        const transport = oldestMember.getTransport(oldestMember);
-        if (transport === undefined) {
-          logger.warn(
-            `Oldest member: ${oldestMember.userId}|${oldestMember.deviceId}|${oldestMember.memberId} has no transport`,
-          );
-          return null;
-        }
-        if (!isLivekitTransportConfig(transport)) {
-          logger.warn(
-            `Oldest member: ${oldestMember.userId}|${oldestMember.deviceId}|${oldestMember.memberId} has invalid transport`,
-          );
-          return null;
-        }
-        logger.info(
-          "Oldest member: ${oldestMember.userId}|${oldestMember.deviceId}|${oldestMember.memberId} has valid transport",
-        );
-        return transport;
-      }),
-      distinctUntilChanged(areLivekitTransportsEqual),
-    ),
-  );
-}
 
 /**
  *  Utility to ensure the user can authenticate with the SFU.
@@ -288,118 +185,32 @@ function observerOldestMembership$(
  *  use we don't want to risk any issues by re-using a token.
  *
  *  @param transport The transport to authenticate with.
- *  @param forceJwtEndpoint Whether to force the JWT endpoint to be used.
+ *  @param matrixRTCMode Whether to force the JWT endpoint to be used.
  *  @param membership The identity of the local member.
  *  @param roomId The room ID to use for the JWT.
  *  @param client The client to use for the OpenID token.
- *  @param delayId The delayId to use for the JWT.
  *
  *  @throws FailToGetOpenIdToken, NoMatrix2AuthorizationService
  */
 async function doOpenIdAndJWTFromUrl(
   transport: LivekitTransportConfig,
-  forceJwtEndpoint: JwtEndpointVersion,
+  matrixRTCMode: MatrixRTCMode,
   membership: CallMembershipIdentityParts,
   roomId: string,
-  client: Pick<
-    MatrixClient,
-    "getDomain" | "baseUrl" | "_unstable_getRTCTransports" | "getAccessToken"
-  > &
-    OpenIDClientParts,
-  delayId?: string,
+  client: Pick<MatrixClient, "_unstable_getRTCTransports"> & OpenIDClientParts,
+  logger?: Logger,
 ): Promise<LocalTransportWithSFUConfig> {
   const sfuConfig = await getSFUConfigWithOpenID(
     client,
     membership,
     transport.livekit_service_url,
     roomId,
-    {
-      forceJwtEndpoint: forceJwtEndpoint,
-      delayEndpointBaseUrl: client.baseUrl,
-      delayId,
-    },
+    { matrixRTCMode },
     logger,
   );
   return {
     transport,
     sfuConfig,
-  };
-}
-
-function observeLocalTransportForOldestMembership(
-  scope: ObservableScope,
-  oldestMemberTransport$: Behavior<LivekitTransportConfig | null>,
-  preferredTransport$: Observable<LocalTransportWithSFUConfig>,
-  client: Pick<
-    MatrixClient,
-    "getDomain" | "baseUrl" | "_unstable_getRTCTransports" | "getAccessToken"
-  > &
-    OpenIDClientParts,
-  ownMembershipIdentity: CallMembershipIdentityParts,
-  roomId: string,
-): LocalTransport {
-  // Ensure we can authenticate with the SFU.
-  const authenticatedOldestMemberTransport$ = oldestMemberTransport$.pipe(
-    switchMap((transport) => {
-      // Oldest member not available -we are first- (or invalid SFU config).
-      if (transport === null) return of(null);
-
-      // Whenever there is transport change we want to revert
-      // to no transport while we do the authentication.
-      // So do a from(promise) here to be able to startWith(null)
-      return from(
-        doOpenIdAndJWTFromUrl(
-          transport,
-          JwtEndpointVersion.Legacy,
-          ownMembershipIdentity,
-          roomId,
-          client,
-          undefined,
-        ),
-      ).pipe(
-        catchError((e: unknown) => {
-          logger.error(
-            `Failed to authenticate to transport ${transport.livekit_service_url}`,
-            e,
-          );
-          throw mapAuthErrorToUserFriendlyError(e);
-        }),
-        startWith(null),
-      );
-    }),
-  );
-
-  // --- Oldest member mode ---
-  return {
-    // Never update the transport that we advertise in our membership. Just
-    // take the first valid oldest member or preferred transport that we learn
-    // about, and stick with that. This avoids unnecessary SFU hops and room
-    // state changes.
-    advertised$: scope.behavior(
-      merge(
-        authenticatedOldestMemberTransport$.pipe(
-          map((t) => t?.transport ?? null),
-        ),
-        preferredTransport$.pipe(map((t) => t.transport)),
-      ).pipe(
-        first((t) => t !== null),
-        tap((t) =>
-          logger.info(`Advertise transport: ${t.livekit_service_url}`),
-        ),
-      ),
-      null,
-    ),
-    // Publish on the transport used by the oldest member.
-    active$: scope.behavior(
-      authenticatedOldestMemberTransport$.pipe(
-        tap((t) =>
-          logger.info(
-            `Publish on transport: ${t?.transport.livekit_service_url}`,
-          ),
-        ),
-      ),
-      null,
-    ),
   };
 }
 

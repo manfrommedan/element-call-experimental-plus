@@ -27,6 +27,7 @@ import { init as initRageshake } from "./settings/rageshake";
 import { Initializer } from "./initializer";
 import { AppViewModel } from "./state/AppViewModel";
 import { globalScope } from "./state/ObservableScope";
+import { getUrlParams } from "./UrlParams";
 
 initRageshake().catch((e) => {
   logger.error("Failed to initialize rageshake", e);
@@ -54,10 +55,19 @@ if (fatalError !== null) {
 }
 
 Initializer.initBeforeReact()
-  .then(() => {
+  .then((widget) => {
+    const { controlledAudioDevices, callIntent } = getUrlParams();
     root.render(
       <StrictMode>
-        <App vm={new AppViewModel(globalScope)} />
+        <App
+          vm={
+            new AppViewModel(globalScope, {
+              controlledAudioDevices,
+              callIntent,
+            })
+          }
+          widget={widget}
+        />
       </StrictMode>,
     );
   })

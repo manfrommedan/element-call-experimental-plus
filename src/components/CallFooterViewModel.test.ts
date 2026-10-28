@@ -15,6 +15,7 @@ import type { Alignment, Layout } from "../state/layout-types";
 import type { SpotlightTileViewModel } from "../state/TileViewModel";
 import type { DeviceLabel } from "../state/MediaDevices";
 import { createCallFooterViewModel } from "./CallFooterViewModel";
+import { HeaderStyle } from "../UrlParams";
 
 const platformMock = vi.hoisted(() => vi.fn(() => "desktop"));
 vi.mock("../Platform", () => ({
@@ -49,6 +50,7 @@ function buildMinimalCallViewModel(layout: Layout): CallViewModel {
     reactions$: constant({}),
     tileStoreGeneration$: constant(0),
     showFooter$: constant(true),
+    showModals$: constant(true),
     settingsOpen$: constant(false),
     setSettingsOpen$: constant(() => {}),
   } as unknown as CallViewModel;
@@ -104,6 +106,7 @@ describe("createCallFooterViewModel", () => {
         mockMuteStates(),
         twoMicsAndOneCamMediaDevices,
         /* reactionIdentifier */ undefined,
+        { showControls: true, header: HeaderStyle.Standard },
       );
 
       expect(vm.audioOptions$.value).toEqual([]);
@@ -125,6 +128,7 @@ describe("createCallFooterViewModel", () => {
         mockMuteStates(),
         twoMicsAndOneCamMediaDevices,
         /* reactionIdentifier */ undefined,
+        { showControls: true, header: HeaderStyle.Standard },
       );
 
       expect(vm.audioOptions$?.value).toEqual([

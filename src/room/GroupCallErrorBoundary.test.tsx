@@ -5,8 +5,9 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE in the repository root for full details.
 */
 
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, onTestFinished, test, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { BrowserRouter } from "react-router-dom";
 import {
   type FC,
   type ReactElement,
@@ -14,7 +15,7 @@ import {
   useCallback,
   useState,
 } from "react";
-import { BrowserRouter } from "react-router-dom";
+import { LeaveToHomeProvider } from "../LeaveToHomeContext";
 import userEvent from "@testing-library/user-event";
 import { ConnectionError } from "livekit-client";
 import { MatrixError } from "matrix-js-sdk";
@@ -36,7 +37,14 @@ import {
   UnknownCallError,
 } from "../utils/errors.ts";
 import { mockConfig } from "../utils/test.ts";
-import { ElementWidgetActions, type WidgetHelpers } from "../widget.ts";
+import {
+  type HostBridge,
+  HostBridgeProvider,
+  nullHostBridge,
+} from "../HostBridge.ts";
+
+// Somewhere to go home to, so that the error pages offer the way
+const leaveToHome = vi.fn();
 
 test.each([
   {
@@ -75,15 +83,14 @@ test.each([
 
     const onErrorMock = vi.fn();
     const { asFragment } = render(
-      <BrowserRouter>
+      <LeaveToHomeProvider value={leaveToHome}>
         <GroupCallErrorBoundary
           onError={onErrorMock}
           recoveryActionHandler={vi.fn()}
-          widget={null}
         >
           <TestComponent />
         </GroupCallErrorBoundary>
-      </BrowserRouter>,
+      </LeaveToHomeProvider>,
     );
 
     await screen.findByText(expectedTitle);
@@ -103,16 +110,19 @@ test("should render the error page with link back to home", async () => {
   };
 
   const onErrorMock = vi.fn();
+  // From the home page itself the home button reloads instead of navigating,
+  // so be somewhere else for this test
+  window.history.pushState({}, "", "/room/somewhere");
+  onTestFinished(() => window.history.pushState({}, "", "/"));
   const { asFragment } = render(
-    <BrowserRouter>
+    <LeaveToHomeProvider value={leaveToHome}>
       <GroupCallErrorBoundary
         onError={onErrorMock}
         recoveryActionHandler={vi.fn()}
-        widget={null}
       >
         <TestComponent />
       </GroupCallErrorBoundary>
-    </BrowserRouter>,
+    </LeaveToHomeProvider>,
   );
 
   await screen.findByText("Call is not supported");
@@ -121,7 +131,11 @@ test("should render the error page with link back to home", async () => {
     screen.getByText(/Error Code: MISSING_MATRIX_RTC_TRANSPORT/i),
   ).toBeInTheDocument();
 
-  await screen.findByRole("button", { name: "Return to home screen" });
+  // The way home is whatever the shell supplied, not a route of the call's own
+  await userEvent
+    .setup()
+    .click(screen.getByRole("button", { name: "Return to home screen" }));
+  expect(leaveToHome).toHaveBeenCalledOnce();
 
   expect(onErrorMock).toHaveBeenCalledOnce();
   expect(onErrorMock).toHaveBeenCalledWith(error);
@@ -153,14 +167,11 @@ test("ConnectionLostError: Action handling should reset error state", async () =
     );
 
     return (
-      <BrowserRouter>
-        <GroupCallErrorBoundary
-          recoveryActionHandler={reconnectCallback}
-          widget={null}
-        >
+      <LeaveToHomeProvider value={leaveToHome}>
+        <GroupCallErrorBoundary recoveryActionHandler={reconnectCallback}>
           <TestComponent fail={failState} />
         </GroupCallErrorBoundary>
-      </BrowserRouter>
+      </LeaveToHomeProvider>
     );
   };
 
@@ -207,10 +218,7 @@ test("recoverable transport error: offers reconnect and resets on retry", async 
 
     return (
       <BrowserRouter>
-        <GroupCallErrorBoundary
-          recoveryActionHandler={reconnectCallback}
-          widget={null}
-        >
+        <GroupCallErrorBoundary recoveryActionHandler={reconnectCallback}>
           <TestComponent fail={failState} />
         </GroupCallErrorBoundary>
       </BrowserRouter>
@@ -243,15 +251,14 @@ describe("Rageshake button", () => {
     };
 
     render(
-      <BrowserRouter>
+      <LeaveToHomeProvider value={leaveToHome}>
         <GroupCallErrorBoundary
           onError={vi.fn()}
           recoveryActionHandler={vi.fn()}
-          widget={null}
         >
           <TestComponent />
         </GroupCallErrorBoundary>
-      </BrowserRouter>,
+      </LeaveToHomeProvider>,
     );
   }
 
@@ -272,30 +279,28 @@ describe("Rageshake button", () => {
   });
 });
 
-test("should have a close button in widget mode", async () => {
+test("should have a close button when the host can dismiss us", async () => {
   const error = new MatrixRTCTransportMissingError("example.com");
   const TestComponent = (): ReactNode => {
     throw error;
   };
 
-  const mockWidget = {
-    api: {
-      transport: { send: vi.fn().mockResolvedValue(undefined), stop: vi.fn() },
-    },
-  } as unknown as WidgetHelpers;
+  const close = vi.fn().mockResolvedValue(undefined);
+  const hostBridge: HostBridge = { ...nullHostBridge, close };
 
   const user = userEvent.setup();
   const onErrorMock = vi.fn();
   const { asFragment } = render(
-    <BrowserRouter>
-      <GroupCallErrorBoundary
-        widget={mockWidget}
-        onError={onErrorMock}
-        recoveryActionHandler={vi.fn()}
-      >
-        <TestComponent />
-      </GroupCallErrorBoundary>
-    </BrowserRouter>,
+    <LeaveToHomeProvider value={leaveToHome}>
+      <HostBridgeProvider value={hostBridge}>
+        <GroupCallErrorBoundary
+          onError={onErrorMock}
+          recoveryActionHandler={vi.fn()}
+        >
+          <TestComponent />
+        </GroupCallErrorBoundary>
+      </HostBridgeProvider>
+    </LeaveToHomeProvider>,
   );
 
   await screen.findByText("Call is not supported");
@@ -306,11 +311,7 @@ test("should have a close button in widget mode", async () => {
 
   await user.click(screen.getByRole("button", { name: "Close" }));
 
-  expect(mockWidget.api.transport.send).toHaveBeenCalledWith(
-    ElementWidgetActions.Close,
-    expect.anything(),
-  );
-  expect(mockWidget.api.transport.stop).toHaveBeenCalled();
+  expect(close).toHaveBeenCalled();
 });
 
 test("should show technical details when error has a matrixError cause", async () => {
@@ -329,15 +330,11 @@ test("should show technical details when error has a matrixError cause", async (
   };
 
   render(
-    <BrowserRouter>
-      <GroupCallErrorBoundary
-        onError={vi.fn()}
-        recoveryActionHandler={vi.fn()}
-        widget={null}
-      >
+    <LeaveToHomeProvider value={leaveToHome}>
+      <GroupCallErrorBoundary onError={vi.fn()} recoveryActionHandler={vi.fn()}>
         <TestComponent />
       </GroupCallErrorBoundary>
-    </BrowserRouter>,
+    </LeaveToHomeProvider>,
   );
 
   await screen.findByText("Something went wrong");
@@ -362,15 +359,11 @@ test("should not show technical details when error has no matrix error cause", a
   };
 
   render(
-    <BrowserRouter>
-      <GroupCallErrorBoundary
-        onError={vi.fn()}
-        recoveryActionHandler={vi.fn()}
-        widget={null}
-      >
+    <LeaveToHomeProvider value={leaveToHome}>
+      <GroupCallErrorBoundary onError={vi.fn()} recoveryActionHandler={vi.fn()}>
         <TestComponent />
       </GroupCallErrorBoundary>
-    </BrowserRouter>,
+    </LeaveToHomeProvider>,
   );
 
   await screen.findByText("Connection lost");
@@ -420,15 +413,14 @@ describe("LiveKit ConnectionError variants", () => {
       };
 
       const { asFragment } = render(
-        <BrowserRouter>
+        <LeaveToHomeProvider value={leaveToHome}>
           <GroupCallErrorBoundary
             onError={vi.fn()}
             recoveryActionHandler={vi.fn()}
-            widget={null}
           >
             <TestComponent />
           </GroupCallErrorBoundary>
-        </BrowserRouter>,
+        </LeaveToHomeProvider>,
       );
 
       // Check title
@@ -450,15 +442,14 @@ describe("LiveKit ConnectionError variants", () => {
     };
 
     const { asFragment } = render(
-      <BrowserRouter>
+      <LeaveToHomeProvider value={leaveToHome}>
         <GroupCallErrorBoundary
           onError={vi.fn()}
           recoveryActionHandler={vi.fn()}
-          widget={null}
         >
           <TestComponent />
         </GroupCallErrorBoundary>
-      </BrowserRouter>,
+      </LeaveToHomeProvider>,
     );
 
     await screen.findByText("Connection timeout");

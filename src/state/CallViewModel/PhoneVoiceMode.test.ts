@@ -19,6 +19,10 @@ vi.mock("rxjs", async (importOriginal) => ({
   // Block interval() so the marble scheduler doesn't loop forever.
   interval: (): Observable<number> => NEVER,
 }));
+vi.mock("../../Platform", async (importOriginal) => ({
+  ...(await importOriginal()),
+  platform: "android",
+}));
 vi.mock("@livekit/components-core");
 vi.mock("livekit-client/e2ee-worker?worker");
 vi.mock("../../e2ee/matrixKeyProvider");
@@ -51,47 +55,70 @@ import { constant } from "../Behavior";
 import { withCallViewModel as withCallViewModelInMode } from "./CallViewModelTestUtils";
 import { MatrixRTCMode } from "../../config/ConfigOptions";
 
-describe.each([
-  [MatrixRTCMode.Legacy],
-  [MatrixRTCMode.Compatibility],
-  [MatrixRTCMode.Matrix_2_0],
-])("phoneVoiceMode (%s mode)", (mode) => {
-  const withCallViewModel = withCallViewModelInMode(mode);
+describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
+  "phoneVoiceMode (%s mode)",
+  (mode) => {
+    const withCallViewModel = withCallViewModelInMode(mode);
 
-  afterEach(() => {
-    // Reset the URL-params mock between tests so the flag never bleeds
-    // across cases inside this file.
-    getUrlParams.mockImplementation(() => ({}));
-  });
-
-  test("phoneVoiceMode$ defaults to false when the URL flag is unset", () => {
-    withTestScheduler(({ expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([aliceParticipant]),
-          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
-        },
-        (vm) => {
-          expectObservable(vm.phoneVoiceMode$).toBe("a", { a: false });
-        },
-      );
+    afterEach(() => {
+      // Reset the URL-params mock between tests so the flag never bleeds
+      // across cases inside this file.
+      getUrlParams.mockImplementation(() => ({}));
     });
-  });
 
-  test("phoneVoiceMode$ flips on when phoneVoiceLayout=true and local video is off", () => {
-    getUrlParams.mockImplementation(() => ({ phoneVoiceLayout: true }));
-    withTestScheduler(({ expectObservable }) => {
-      withCallViewModel(
-        {
-          remoteParticipants$: constant([aliceParticipant]),
-          rtcMembers$: constant([localRtcMember, aliceRtcMember]),
-        },
-        (vm) => {
-          // mockMuteStates() defaults videoEnabled to false, so phone-voice
-          // mode is initially active.
-          expectObservable(vm.phoneVoiceMode$).toBe("a", { a: true });
-        },
-      );
+    test("phoneVoiceMode$ defaults to false when the URL flag is unset", () => {
+      withTestScheduler(({ expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([aliceParticipant]),
+            rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          },
+          (vm) => {
+            expectObservable(vm.phoneVoiceMode$).toBe("a", { a: false });
+          },
+        );
+      });
     });
-  });
-});
+
+    test.each([
+      [{ width: 700, height: 380 }, true],
+      [{ width: 380, height: 500 }, false],
+      [{ width: 500, height: 500 }, false],
+    ])(
+      "phoneVoiceLandscape$ requires landscape geometry (%s)",
+      (windowSize, expected) => {
+        withTestScheduler(({ expectObservable }) => {
+          withCallViewModel(
+            {
+              remoteParticipants$: constant([aliceParticipant]),
+              rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+            },
+            (vm) => {
+              expectObservable(vm.phoneVoiceLandscape$).toBe("a", {
+                a: expected,
+              });
+            },
+            { phoneVoiceLayout: true, windowSize$: constant(windowSize) },
+          );
+        });
+      },
+    );
+
+    test("phoneVoiceMode$ flips on when phoneVoiceLayout=true and local video is off", () => {
+      withTestScheduler(({ expectObservable }) => {
+        withCallViewModel(
+          {
+            remoteParticipants$: constant([aliceParticipant]),
+            rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+          },
+          (vm) => {
+            // mockMuteStates() defaults videoEnabled to false, so phone-voice
+            // mode is initially active.
+            expectObservable(vm.phoneVoiceMode$).toBe("a", { a: true });
+          },
+          { phoneVoiceLayout: true },
+        );
+      });
+    });
+  },
+);
