@@ -428,9 +428,11 @@ const LoadedCallView: FC<LoadedProps> = ({
           ),
         )
         .then(async () => {
-          // Close before the awaited setAlwaysOnScreen: a slow request can otherwise
-          // dispose of the iframe before the host receives Close. Skip on error so
-          // the user can read it.
+          // Start clearing always-on-screen before closing the transport, but do not
+          // wait for a slow host round-trip before delivering Close.
+          void hostBridge.setAlwaysOnScreen(false).catch((e) => {
+            logger.error("Failed to set `alwaysOnScreen` to false", e);
+          });
           if (reason != "error" && !returnToLobby) {
             try {
               await hostBridge.close?.();
@@ -445,12 +447,6 @@ const LoadedCallView: FC<LoadedProps> = ({
             !PosthogAnalytics.instance.isEnabled()
           )
             leaveToHome?.();
-
-          try {
-            await hostBridge.setAlwaysOnScreen(false);
-          } catch (e) {
-            logger.error("Failed to set `alwaysOnScreen` to false", e);
-          }
         });
     },
     [

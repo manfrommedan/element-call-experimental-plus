@@ -192,6 +192,20 @@ describe("enterRTCSession", () => {
     );
   });
 
+  it("passes notificationLifetimeMs to joinRTCSession", () => {
+    enterRTCSession(mockedSession, ownMemberMock, transport, {
+      ...options,
+      notificationLifetimeMs: 60_000,
+    });
+
+    expect(mockedSession.joinRTCSession).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ notificationLifetimeMs: 60_000 }),
+    );
+  });
+
   it("uses the specified delayed leave timings", () => {
     enterRTCSession(mockedSession, ownMemberMock, transport, options);
 

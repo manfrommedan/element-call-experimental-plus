@@ -11,9 +11,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import classNames from "classnames";
+import { logger } from "matrix-js-sdk/lib/logger";
 import { useObservableEagerState } from "observable-hooks";
 import { type TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -29,6 +31,12 @@ import { type AudioOutputDeviceLabel } from "../state/MediaDevices";
 import { type MuteStates } from "../state/MuteStates";
 import { useMediaDevices } from "../MediaDevicesContext";
 import { Modal } from "../Modal";
+import { useBehavior } from "../useBehavior";
+import { useInitial } from "../useInitial";
+import { prefetchSounds } from "../soundUtils";
+import { type UseAudioContext, useAudioContext } from "../useAudioContext";
+import ringbackMp3 from "../sound/ringback.mp3?url";
+import ringbackOgg from "../sound/ringback.ogg?url";
 import styles from "./VoiceFooter.module.css";
 
 // Cap so a denied CAMERA permission doesn't leave the spinner stuck.
@@ -41,12 +49,7 @@ const HAPTIC_CONNECT_MS = 25;
 const HAPTIC_HANGUP_MS = 40;
 
 // North-American "precise" ringback (Bell cadence: 2 s on, 4 s off).
-const RINGBACK_FREQUENCIES_HZ = [440, 480] as const;
-const RINGBACK_PULSE_DURATION_S = 2;
 const RINGBACK_CADENCE_MS = 6_000;
-// 0.35 × 2 oscillators = 0.70 peak; sits below the [-1, 1] clip ceiling.
-const RINGBACK_GAIN = 0.35;
-const RINGBACK_RAMP_S = 0.08;
 
 interface Props {
   vm: CallViewModel;
@@ -59,7 +62,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   const audioEnabled = useObservableEagerState(muteStates.audio.enabled$);
   const toggleAudio = useObservableEagerState(muteStates.audio.toggle$);
   const videoEnabled = useObservableEagerState(muteStates.video.enabled$);
-  const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
+  const setVideoEnabled = useBehavior(muteStates.video.setEnabled$);
   const participantCount = useObservableEagerState(vm.participantCount$);
   const ringing = useObservableEagerState(vm.ringingVm$) !== null;
   const connected = useObservableEagerState(vm.connected$);
@@ -89,19 +92,32 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
 
   // Ringback only once we are actually on the SFU, so the caller never hears a
   // dial tone during the "connecting to server" phase.
-  useOutgoingRingback(connected && ringing);
+  const ringbackSounds = useInitial(async () =>
+    prefetchSounds({
+      ringback: { mp3: ringbackMp3, ogg: ringbackOgg },
+    }),
+  );
+  const ringbackAudio = useAudioContext({
+    sounds: ringbackSounds,
+    latencyHint: "interactive",
+  });
+  useOutgoingRingback(connected && ringing, ringbackAudio);
   useConnectHaptic(participantCount > 1);
   useNotifyHostOnRemoteJoined(participantCount > 1);
 
   // Optimistic-pending until videoEnabled catches up or the timeout fires.
   const [videoPending, setVideoPending] = useState(false);
+  const wasVideoEnabled = useRef(videoEnabled);
   useEffect(() => {
-    if (videoPending && videoEnabled) setVideoPending(false);
-  }, [videoEnabled, videoPending]);
+    // A transition to muted after a successful or host-initiated change cancels retries.
+    if (wasVideoEnabled.current && !videoEnabled) setVideoPending(false);
+    wasVideoEnabled.current = videoEnabled;
+    if (videoEnabled) setVideoPending(false);
+  }, [videoEnabled]);
   useEffect(() => {
     if (!videoPending) return undefined;
     const retryId = setInterval(() => {
-      if (!videoEnabled && toggleVideo) toggleVideo();
+      if (!videoEnabled && setVideoEnabled) setVideoEnabled(true);
     }, VIDEO_TOGGLE_RETRY_INTERVAL_MS);
     const giveUpId = setTimeout(
       () => setVideoPending(false),
@@ -111,7 +127,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
       clearInterval(retryId);
       clearTimeout(giveUpId);
     };
-  }, [videoPending, videoEnabled, toggleVideo]);
+  }, [videoPending, videoEnabled, setVideoEnabled]);
   const videoActive = videoEnabled || videoPending;
 
   const outputs = useMemo(
@@ -149,11 +165,16 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
   }, [toggleAudio]);
 
   const onVideoClick = useCallback((): void => {
-    if (!toggleVideo) return;
+    if (!setVideoEnabled) return;
     haptic("tap");
-    if (!videoEnabled) setVideoPending(true);
-    toggleVideo();
-  }, [toggleVideo, videoEnabled]);
+    if (videoPending) {
+      setVideoPending(false);
+      setVideoEnabled(false);
+    } else {
+      setVideoPending(!videoEnabled);
+      setVideoEnabled(!videoEnabled);
+    }
+  }, [setVideoEnabled, videoEnabled, videoPending]);
 
   const onAudioOutputClick = useCallback((): void => {
     haptic("tap");
@@ -222,7 +243,7 @@ export const VoiceFooter: FC<Props> = ({ vm, muteStates, hidden }) => {
             size="lg"
             enabled={videoActive}
             onClick={onVideoClick}
-            disabled={toggleVideo === null}
+            disabled={setVideoEnabled === null}
           />
           <EndCallButton size="lg" onClick={onHangupClick} />
         </div>
@@ -440,59 +461,20 @@ function useConnectHaptic(connected: boolean): void {
   }, [connected, hasFired]);
 }
 
-function useOutgoingRingback(active: boolean): void {
+function useOutgoingRingback(
+  active: boolean,
+  audio: UseAudioContext<"ringback"> | null,
+): void {
   useEffect(() => {
-    if (!active) return undefined;
-    const AudioCtx = window.AudioContext ?? window.webkitAudioContext;
-    if (!AudioCtx) return undefined;
-    const ctx: AudioContext = new AudioCtx();
-    let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const playPulse = (): void => {
-      if (cancelled) return;
-      try {
-        const start = ctx.currentTime;
-        const duration = RINGBACK_PULSE_DURATION_S;
-        const gainNode = ctx.createGain();
-        gainNode.connect(ctx.destination);
-        gainNode.gain.setValueAtTime(0, start);
-        gainNode.gain.linearRampToValueAtTime(
-          RINGBACK_GAIN,
-          start + RINGBACK_RAMP_S,
-        );
-        gainNode.gain.setValueAtTime(
-          RINGBACK_GAIN,
-          start + duration - RINGBACK_RAMP_S,
-        );
-        gainNode.gain.linearRampToValueAtTime(0, start + duration);
-        for (const frequency of RINGBACK_FREQUENCIES_HZ) {
-          const osc = ctx.createOscillator();
-          osc.type = "sine";
-          osc.frequency.value = frequency;
-          osc.connect(gainNode);
-          osc.start(start);
-          osc.stop(start + duration);
-        }
-      } catch {
-        // AudioContext can land in a closed state mid-call; bail silently.
-      }
-      timeoutId = setTimeout(playPulse, RINGBACK_CADENCE_MS);
-    };
-
-    void ctx.resume().catch(() => undefined);
-    playPulse();
-
+    if (!active || !audio) return undefined;
+    const endSound = audio.playSoundLooping(
+      "ringback",
+      RINGBACK_CADENCE_MS / 1000,
+    );
     return (): void => {
-      cancelled = true;
-      if (timeoutId !== undefined) clearTimeout(timeoutId);
-      void ctx.close().catch(() => undefined);
+      void endSound().catch((e) => {
+        logger.error("Failed to stop outgoing ringback", e);
+      });
     };
-  }, [active]);
-}
-
-declare global {
-  interface Window {
-    webkitAudioContext?: typeof AudioContext;
-  }
+  }, [active, audio]);
 }

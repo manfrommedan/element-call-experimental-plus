@@ -385,7 +385,7 @@ export const InCallView: FC<InCallViewProps> = ({
 
   useAppBarHidden(!showHeader);
   useAppBarSubtitle(
-    ringingVm && vm.ringingStatusLocation === "app_bar" && (
+    ringingVm && !phoneVoiceMode && vm.ringingStatusLocation === "app_bar" && (
       <RingingStatus vm={ringingVm} />
     ),
   );
@@ -498,7 +498,8 @@ export const InCallView: FC<InCallViewProps> = ({
         );
         const showSpeakingIndicators = useBehavior(vm.showSpeakingIndicators$);
         const showNameTags = useBehavior(vm.showNameTags$);
-        const showRingingStatus = vm.ringingStatusLocation === "tile";
+        const showRingingStatus =
+          !phoneVoiceMode && vm.ringingStatusLocation === "tile";
         const showOutline = useBehavior(
           model instanceof GridTileViewModel
             ? model.showOutline$
@@ -517,6 +518,7 @@ export const InCallView: FC<InCallViewProps> = ({
             showSpeakingIndicators={showSpeakingIndicators}
             showNameTags={showNameTags}
             showRingingStatus={showRingingStatus}
+            phoneVoiceMode={phoneVoiceMode}
             showOutline={showOutline}
             focusable={!contentObscured}
           />
@@ -531,6 +533,7 @@ export const InCallView: FC<InCallViewProps> = ({
             showIndicators={showSpotlightIndicators}
             showNameTags={showNameTags}
             showRingingStatus={showRingingStatus}
+            phoneVoiceMode={phoneVoiceMode}
             focusable={!contentObscured}
             className={classNames(className, styles.tile)}
             itemClassName={styles.spotlightItem}
@@ -538,7 +541,7 @@ export const InCallView: FC<InCallViewProps> = ({
           />
         );
       },
-    [vm, openProfile, contentObscured],
+    [vm, openProfile, contentObscured, phoneVoiceMode],
   );
 
   const layouts = useMemo(() => {
@@ -569,7 +572,10 @@ export const InCallView: FC<InCallViewProps> = ({
           targetHeight={gridBounds.height}
           showIndicators={false}
           showNameTags={showNameTags}
-          showRingingStatus={vm.ringingStatusLocation === "tile"}
+          showRingingStatus={
+            !phoneVoiceMode && vm.ringingStatusLocation === "tile"
+          }
+          phoneVoiceMode={phoneVoiceMode}
           focusable={!contentObscured}
           aria-hidden={contentObscured}
         />

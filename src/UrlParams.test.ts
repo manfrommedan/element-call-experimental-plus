@@ -448,12 +448,20 @@ describe("UrlParams", () => {
     });
 
     it("is parsed", () => {
-      expect(
-        computeUrlParams("?phoneVoiceLayout=true").phoneVoiceLayout,
-      ).toBe(true);
-      expect(
-        computeUrlParams("?phoneVoiceLayout=false").phoneVoiceLayout,
-      ).toBe(false);
+      expect(computeUrlParams("?phoneVoiceLayout=true").phoneVoiceLayout).toBe(
+        true,
+      );
+      expect(computeUrlParams("?phoneVoiceLayout=false").phoneVoiceLayout).toBe(
+        false,
+      );
+    });
+  });
+
+  describe("startVideoMuted", () => {
+    it("mutes the camera without changing the advertised intent", () => {
+      const params = computeUrlParams("?callIntent=video&startVideoMuted=true");
+      expect(params.startVideoMuted).toBe(true);
+      expect(params.callIntent).toBe("video");
     });
   });
 

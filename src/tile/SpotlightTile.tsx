@@ -33,7 +33,6 @@ import classNames from "classnames";
 import { type TrackReferenceOrPlaceholder } from "@livekit/components-core";
 import { Menu, MenuItem, Text } from "@vector-im/compound-web";
 
-import { useUrlParams } from "../UrlParams";
 import FullScreenMaximiseIcon from "../icons/FullScreenMaximise.svg?react";
 import FullScreenMinimiseIcon from "../icons/FullScreenMinimise.svg?react";
 import { MediaView } from "./MediaView";
@@ -100,16 +99,15 @@ SpotlightLocalUserMediaItem.displayName = "SpotlightLocalUserMediaItem";
 
 interface SpotlightRemoteUserMediaItemProps extends SpotlightUserMediaItemBaseProps {
   vm: RemoteUserMediaViewModel;
+  phoneVoiceMode?: boolean;
 }
 
 const SpotlightRemoteUserMediaItem: FC<SpotlightRemoteUserMediaItemProps> = ({
   vm,
+  phoneVoiceMode = false,
   ...props
 }) => {
-  // Phone-voice shows the call status in the VoiceFooter, not on the tile.
-  const { phoneVoiceLayout } = useUrlParams();
-  const waitingForMedia =
-    useBehavior(vm.waitingForMedia$) && !phoneVoiceLayout;
+  const waitingForMedia = useBehavior(vm.waitingForMedia$) && !phoneVoiceMode;
   return (
     <MediaView waitingForMedia={waitingForMedia} mirror={false} {...props} />
   );
@@ -117,10 +115,12 @@ const SpotlightRemoteUserMediaItem: FC<SpotlightRemoteUserMediaItemProps> = ({
 
 interface SpotlightUserMediaItemProps extends SpotlightMemberMediaItemBaseProps {
   vm: UserMediaViewModel;
+  phoneVoiceMode?: boolean;
 }
 
 const SpotlightUserMediaItem: FC<SpotlightUserMediaItemProps> = ({
   vm,
+  phoneVoiceMode,
   targetWidth,
   targetHeight,
   ...props
@@ -141,7 +141,11 @@ const SpotlightUserMediaItem: FC<SpotlightUserMediaItemProps> = ({
   return vm.local ? (
     <SpotlightLocalUserMediaItem vm={vm} {...baseProps} />
   ) : (
-    <SpotlightRemoteUserMediaItem vm={vm} {...baseProps} />
+    <SpotlightRemoteUserMediaItem
+      vm={vm}
+      phoneVoiceMode={phoneVoiceMode}
+      {...baseProps}
+    />
   );
 };
 
@@ -174,10 +178,12 @@ const SpotlightRemoteScreenShareItem: FC<
 
 interface SpotlightMemberMediaItemProps extends SpotlightItemBaseProps {
   vm: MemberMediaViewModel;
+  phoneVoiceMode?: boolean;
 }
 
 const SpotlightMemberMediaItem: FC<SpotlightMemberMediaItemProps> = ({
   vm,
+  phoneVoiceMode,
   ...props
 }) => {
   const video = useBehavior(vm.video$);
@@ -193,7 +199,13 @@ const SpotlightMemberMediaItem: FC<SpotlightMemberMediaItemProps> = ({
   };
 
   if (vm.type === "user")
-    return <SpotlightUserMediaItem vm={vm} {...baseProps} />;
+    return (
+      <SpotlightUserMediaItem
+        vm={vm}
+        phoneVoiceMode={phoneVoiceMode}
+        {...baseProps}
+      />
+    );
   return vm.local ? (
     <SpotlightScreenShareItem vm={vm} videoEnabled {...baseProps} />
   ) : (
@@ -243,6 +255,7 @@ interface SpotlightItemProps {
   targetHeight: number;
   showNameTags: boolean;
   showRingingStatus: boolean;
+  phoneVoiceMode?: boolean;
   background: "solid" | "transparent";
   focusable: boolean;
   intersectionObserver$: Observable<IntersectionObserver>;
@@ -261,6 +274,7 @@ const SpotlightItem: FC<SpotlightItemProps> = ({
   targetHeight,
   showNameTags,
   showRingingStatus,
+  phoneVoiceMode,
   background,
   focusable,
   intersectionObserver$,
@@ -311,7 +325,11 @@ const SpotlightItem: FC<SpotlightItemProps> = ({
       {...baseProps}
     />
   ) : (
-    <SpotlightMemberMediaItem vm={vm} {...baseProps} />
+    <SpotlightMemberMediaItem
+      vm={vm}
+      phoneVoiceMode={phoneVoiceMode}
+      {...baseProps}
+    />
   );
 };
 
@@ -395,6 +413,7 @@ interface Props {
   showNameTags: boolean;
   showRingingStatus: boolean;
   focusable: boolean;
+  phoneVoiceMode?: boolean;
   className?: string;
   /**
    * CSS class of the individual spotlight items.
@@ -413,6 +432,7 @@ export const SpotlightTile: FC<Props> = ({
   showIndicators,
   showNameTags,
   showRingingStatus,
+  phoneVoiceMode,
   focusable = true,
   className,
   itemClassName,
@@ -524,6 +544,7 @@ export const SpotlightTile: FC<Props> = ({
             targetWidth={targetWidth}
             targetHeight={targetHeight}
             showRingingStatus={showRingingStatus}
+            phoneVoiceMode={phoneVoiceMode}
             showNameTags={showNameTags}
             background={background}
             focusable={focusable}

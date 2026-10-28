@@ -24,6 +24,7 @@ export function calculateInitialMuteState(
   callIntent: RTCCallIntent | undefined,
   allowJoinUnmutedViaIntent: boolean,
   phoneVoiceLayout: boolean = false,
+  startVideoMuted: boolean = false,
 ): { audioEnabled: boolean; videoEnabled: boolean } {
   logger.debug(
     `calculateInitialMuteState: skipLobby=${skipLobby}, callIntent=${callIntent} allowJoinUnmutedViaIntent=${allowJoinUnmutedViaIntent} phoneVoiceLayout=${phoneVoiceLayout}`,
@@ -45,6 +46,7 @@ export function calculateInitialMuteState(
   // disable video by default.
   return {
     audioEnabled: true,
-    videoEnabled: callIntent != "audio" && !phoneVoiceLayout,
+    videoEnabled:
+      callIntent != "audio" && !phoneVoiceLayout && !startVideoMuted,
   };
 }

@@ -18,7 +18,6 @@ import {
 import { type animated } from "@react-spring/web";
 import classNames from "classnames";
 import { useTranslation } from "react-i18next";
-import { useUrlParams } from "../UrlParams";
 import {
   MicOnSolidIcon,
   MicOffSolidIcon,
@@ -351,18 +350,18 @@ LocalUserMediaTile.displayName = "LocalUserMediaTile";
 interface RemoteUserMediaTileProps extends TileProps {
   vm: RemoteUserMediaViewModel;
   showSpeakingIndicators: boolean;
+  phoneVoiceMode?: boolean;
 }
 
 const RemoteUserMediaTile: FC<RemoteUserMediaTileProps> = ({
   ref,
   vm,
+  phoneVoiceMode = false,
   ...props
 }) => {
   const { t } = useTranslation();
   // Phone-voice shows the call status in the VoiceFooter, not on the tile.
-  const { phoneVoiceLayout } = useUrlParams();
-  const waitingForMedia =
-    useBehavior(vm.waitingForMedia$) && !phoneVoiceLayout;
+  const waitingForMedia = useBehavior(vm.waitingForMedia$) && !phoneVoiceMode;
   const playbackMuted = useBehavior(vm.playbackMuted$);
   const playbackVolume = useBehavior(vm.playbackVolume$);
   const focusUrl = useBehavior(vm.focusUrl$);
@@ -427,6 +426,7 @@ interface GridTileProps {
   showNameTags: boolean;
   showRingingStatus: boolean;
   showOutline: boolean;
+  phoneVoiceMode?: boolean;
   focusable: boolean;
 }
 
@@ -436,6 +436,7 @@ export const GridTile: FC<GridTileProps> = ({
   showSpeakingIndicators,
   showRingingStatus,
   showOutline,
+  phoneVoiceMode = false,
   onOpenProfile,
   className,
   ...props
@@ -477,6 +478,7 @@ export const GridTile: FC<GridTileProps> = ({
         ref={ref}
         vm={media}
         showSpeakingIndicators={showSpeakingIndicators}
+        phoneVoiceMode={phoneVoiceMode}
         displayName={displayName}
         mxcAvatarUrl={mxcAvatarUrl}
         className={classNames(className, { [styles.outline]: showOutline })}

@@ -61,6 +61,7 @@ import { HostBridgeProvider } from "../src/HostBridge";
 import { RootElementProvider, useRootElement } from "../src/RootElementContext";
 import {
   configurationForIntent,
+  normalizeCallConfiguration,
   componentProperties,
   type UrlConfiguration,
   type UrlParams,
@@ -262,12 +263,13 @@ export const ElementCall: FC<ElementCallProps> = ({
   // inline would otherwise tear the call down on every render.
   const stableConfig = useStableValue(config);
   const params = useMemo(
-    (): UrlParams => ({
-      ...componentProperties,
-      roomId,
-      ...configurationForIntent(intent),
-      ...stableConfig,
-    }),
+    (): UrlParams =>
+      normalizeCallConfiguration({
+        ...componentProperties,
+        roomId,
+        ...configurationForIntent(intent),
+        ...stableConfig,
+      }),
     [roomId, intent, stableConfig],
   );
 

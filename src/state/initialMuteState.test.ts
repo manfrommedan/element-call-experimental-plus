@@ -95,6 +95,18 @@ test.each<{
   },
 );
 
+test("startVideoMuted mutes video without changing call intent", () => {
+  const { audioEnabled, videoEnabled } = calculateInitialMuteState(
+    true,
+    "video",
+    true,
+    false,
+    true,
+  );
+  expect(audioEnabled).toBe(true);
+  expect(videoEnabled).toBe(false);
+});
+
 test("phoneVoiceLayout still respects SPA skip-lobby privacy mute", () => {
   // SPA + skipLobby protects user privacy by starting muted regardless of
   // host hints. The phone-style flag must not break that contract.

@@ -19,6 +19,10 @@ vi.mock("rxjs", async (importOriginal) => ({
   // Block interval() so the marble scheduler doesn't loop forever.
   interval: (): Observable<number> => NEVER,
 }));
+vi.mock("../../Platform", async (importOriginal) => ({
+  ...(await importOriginal()),
+  platform: "android",
+}));
 vi.mock("@livekit/components-core");
 vi.mock("livekit-client/e2ee-worker?worker");
 vi.mock("../../e2ee/matrixKeyProvider");
@@ -75,6 +79,30 @@ describe.each([[MatrixRTCMode.Compatibility], [MatrixRTCMode.Matrix_2_0]])(
         );
       });
     });
+
+    test.each([
+      [{ width: 700, height: 380 }, true],
+      [{ width: 380, height: 500 }, false],
+      [{ width: 500, height: 500 }, false],
+    ])(
+      "phoneVoiceLandscape$ requires landscape geometry (%s)",
+      (windowSize, expected) => {
+        withTestScheduler(({ expectObservable }) => {
+          withCallViewModel(
+            {
+              remoteParticipants$: constant([aliceParticipant]),
+              rtcMembers$: constant([localRtcMember, aliceRtcMember]),
+            },
+            (vm) => {
+              expectObservable(vm.phoneVoiceLandscape$).toBe("a", {
+                a: expected,
+              });
+            },
+            { phoneVoiceLayout: true, windowSize$: constant(windowSize) },
+          );
+        });
+      },
+    );
 
     test("phoneVoiceMode$ flips on when phoneVoiceLayout=true and local video is off", () => {
       withTestScheduler(({ expectObservable }) => {

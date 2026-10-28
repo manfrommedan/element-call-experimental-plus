@@ -971,6 +971,8 @@ interface EnterRTCSessionOptions {
   sendNotificationType?: RTCNotificationType;
   /** The kind of call being placed. */
   callIntent?: RTCCallIntent;
+  /** Ringing lifetime override in milliseconds. */
+  notificationLifetimeMs?: number;
 }
 
 /**
@@ -1000,6 +1002,7 @@ export function enterRTCSession(
     delayedLeaveTimings,
     sendNotificationType: notificationType,
     callIntent,
+    notificationLifetimeMs,
   }: EnterRTCSessionOptions,
 ): void {
   PosthogAnalytics.instance.eventCallEnded.cacheStartCall(new Date());
@@ -1048,6 +1051,7 @@ export function enterRTCSession(
     {
       notificationType,
       callIntent,
+      notificationLifetimeMs,
       manageMediaKeys: encryptMedia,
       delayedLeaveEventRestartMs: delayedLeaveTimings.restart_ms,
       delayedLeaveEventDelayMs: delayedLeaveTimings.delay_ms,

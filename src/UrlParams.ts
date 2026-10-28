@@ -264,6 +264,8 @@ export interface UrlConfiguration {
   callIntent?: RTCCallIntent;
   /** Enables the phone-style voice layout and forces voice intent. */
   phoneVoiceLayout: boolean;
+  /** Start with the camera off without changing the advertised call intent. */
+  startVideoMuted: boolean;
 }
 
 // If you need to add a new flag to this interface, prefer a name that describes
@@ -388,6 +390,7 @@ export function configurationForIntent(intent: UserIntent): UrlConfiguration {
     autoLeaveWhenOthersLeft: false,
     waitForCallPickup: false,
     phoneVoiceLayout: false,
+    startVideoMuted: false,
   };
   switch (intent) {
     case UserIntent.StartNewCall:
@@ -444,6 +447,7 @@ export function configurationForIntent(intent: UserIntent): UrlConfiguration {
         autoLeaveWhenOthersLeft: false,
         waitForCallPickup: false,
         phoneVoiceLayout: false,
+        startVideoMuted: false,
       };
   }
   return preset;
@@ -576,6 +580,7 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     // Lets the host start a video call with the camera initially off without forcing phone voice.
     callIntent: parser.getEnumParam("callIntent", ["audio", "video"]),
     phoneVoiceLayout: parser.getFlag("phoneVoiceLayout"),
+    startVideoMuted: parser.getFlag("startVideoMuted"),
   };
 
   // Log the final configuration for debugging purposes.
@@ -590,19 +595,23 @@ export const computeUrlParams = (search = "", hash = ""): UrlParams => {
     configuration,
   );
 
-  const merged = {
+  return normalizeCallConfiguration({
     ...properties,
     ...intentPreset,
     ...pickBy(configuration, (v?: unknown) => v !== undefined),
-  };
-
-  // Rust SDK has no group voice intent variants, so this is the authoritative voice-call signal.
-  if (merged.phoneVoiceLayout === true) {
-    merged.callIntent = "audio";
-  }
-
-  return merged;
+  });
 };
+
+export function normalizeCallConfiguration<T extends UrlConfiguration>(
+  configuration: T,
+): T {
+  if (!configuration.phoneVoiceLayout) return configuration;
+  return {
+    ...configuration,
+    callIntent: "audio",
+    startVideoMuted: true,
+  };
+}
 
 const UrlParamsContext = createContext<UrlParams | null>(null);
 

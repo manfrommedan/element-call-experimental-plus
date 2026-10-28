@@ -659,6 +659,7 @@ export function createCallViewModel$(
           delayedLeaveTimings,
           sendNotificationType,
           callIntent,
+          notificationLifetimeMs: phoneVoiceLayout ? 60_000 : undefined,
         },
       );
     },
@@ -1322,10 +1323,13 @@ export function createCallViewModel$(
   );
 
   const phoneVoiceLandscape$ = scope.behavior<boolean>(
-    combineLatest([phoneVoiceMode$, windowMode$]).pipe(
+    combineLatest([phoneVoiceMode$, windowMode$, options.windowSize$]).pipe(
       map(
-        ([phoneVoice, windowMode]) =>
-          phoneVoice && windowMode === "flat" && platform !== "desktop",
+        ([phoneVoice, windowMode, { width, height }]) =>
+          phoneVoice &&
+          windowMode === "flat" &&
+          width > height &&
+          platform !== "desktop",
       ),
     ),
   );
@@ -1910,11 +1914,7 @@ export function createCallViewModel$(
   return {
     autoLeave$: autoLeave$,
     ringingVm$: ringingMedia$,
-    ringingStatusLocation: phoneVoiceLayout
-      ? "none"
-      : header === HeaderStyle.AppBar
-        ? "app_bar"
-        : "tile",
+    ringingStatusLocation: header === HeaderStyle.AppBar ? "app_bar" : "tile",
     leave$: leave$,
     hangup: (): void => userHangup$.next(),
     join: localMembership.requestJoinAndPublish,

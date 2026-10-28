@@ -41,6 +41,7 @@ export function useMuteStates(): MuteStates | null {
           urlParams.callIntent,
           hostBridge.allowJoinUnmutedViaIntent,
           urlParams.phoneVoiceLayout,
+          urlParams.startVideoMuted,
         ),
         hostBridge,
       ),
