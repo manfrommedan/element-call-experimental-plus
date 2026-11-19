@@ -13,6 +13,7 @@ backend/synapse_tmp_othersite/*
 
 # Transient agent scratch files
 /agent-workspace/
+/.worktrees/
 config.json
 
 # Yarn
