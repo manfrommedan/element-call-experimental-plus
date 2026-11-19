@@ -21,7 +21,6 @@ import {
   switchMap,
   type Observable,
 } from "rxjs";
-import { type LivekitTransport } from "matrix-js-sdk/lib/matrixrtc";
 
 vi.mock("rxjs", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -39,12 +38,6 @@ vi.mock("../../Platform", () => ({
 vi.mock("@livekit/components-core");
 vi.mock("livekit-client/e2ee-worker?worker");
 vi.mock("../../e2ee/matrixKeyProvider");
-
-vi.mock("./localMember/LocalTransport", async (importOriginal) => ({
-  ...(await importOriginal()),
-  makeTransport: async (): Promise<LivekitTransport> =>
-    Promise.resolve((await import("../../utils/test")).exampleTransport),
-}));
 
 import { initializeWidget } from "../../widget";
 initializeWidget();

@@ -16,7 +16,7 @@ import {
   useState,
 } from "react";
 import classNames from "classnames";
-import { useObservableEagerState } from "observable-hooks";
+import { useBehavior } from "../useBehavior";
 import { type TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Button as CpdButton, Tooltip } from "@vector-im/compound-web";
@@ -70,28 +70,24 @@ export const VoiceFooter: FC<Props> = ({
   ref,
 }) => {
   const { t } = useTranslation();
-  const audioEnabled = useObservableEagerState(muteStates.audio.enabled$);
-  const toggleAudio = useObservableEagerState(muteStates.audio.toggle$);
-  const videoEnabled = useObservableEagerState(muteStates.video.enabled$);
-  const toggleVideo = useObservableEagerState(muteStates.video.toggle$);
-  const participantCount = useObservableEagerState(vm.participantCount$);
-  const layoutSwitchVm = useObservableEagerState(vm.layoutSwitchVm$);
+  const audioEnabled = useBehavior(muteStates.audio.enabled$);
+  const toggleAudio = useBehavior(muteStates.audio.toggle$);
+  const videoEnabled = useBehavior(muteStates.video.enabled$);
+  const toggleVideo = useBehavior(muteStates.video.toggle$);
+  const participantCount = useBehavior(vm.participantCount$);
+  const layoutSwitchVm = useBehavior(vm.layoutSwitchVm$);
   const reactionData = useMemo(
     () => ({ handsRaised$: vm.handsRaised$, reactions$: vm.reactions$ }),
     [vm.handsRaised$, vm.reactions$],
   );
-  const ringingVm = useObservableEagerState(vm.ringingVm$);
+  const ringingVm = useBehavior(vm.ringingVm$);
   const ringing = ringingVm !== null;
   const isWaitingForRemote = participantCount <= 1;
   const elapsedSeconds = useElapsedSeconds(!isWaitingForRemote);
 
   const mediaDevices = useMediaDevices();
-  const availableOutputs = useObservableEagerState(
-    mediaDevices.audioOutput.available$,
-  );
-  const selectedOutput = useObservableEagerState(
-    mediaDevices.audioOutput.selected$,
-  );
+  const availableOutputs = useBehavior(mediaDevices.audioOutput.available$);
+  const selectedOutput = useBehavior(mediaDevices.audioOutput.selected$);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   useOutgoingRingback(ringing);

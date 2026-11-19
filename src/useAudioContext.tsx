@@ -7,7 +7,6 @@ Please see LICENSE in the repository root for full details.
 
 import { logger } from "matrix-js-sdk/lib/logger";
 import { useState, useEffect } from "react";
-import { useObservableEagerState } from "observable-hooks";
 
 import {
   soundEffectVolume as soundEffectVolumeSetting,
@@ -17,6 +16,7 @@ import { useEarpieceAudioConfig, useMediaDevices } from "./MediaDevicesContext";
 import { type PrefetchedSounds } from "./soundUtils";
 import { useUrlParams } from "./UrlParams";
 import * as controls from "./controls";
+import { useBehavior } from "./useBehavior";
 
 /**
  * Play a sound though a given AudioContext. Will take
@@ -156,7 +156,7 @@ export function useAudioContext<S extends string>(
       }
       setAudioBuffers(buffers as Record<S, AudioBuffer>);
     })().catch((ex) => {
-      logger.debug("Failed to setup audio context", ex);
+      logger.warn("Failed to setup audio context", ex);
     });
 
     setAudioContext(ctx);
@@ -168,7 +168,7 @@ export function useAudioContext<S extends string>(
     };
   }, [props.sounds, props.latencyHint]);
 
-  const audioOutputId = useObservableEagerState(
+  const audioOutputId = useBehavior(
     useMediaDevices().audioOutput.selected$,
   )?.id;
   const { controlledAudioDevices } = useUrlParams();
@@ -209,7 +209,9 @@ export function useAudioContext<S extends string>(
     },
     playSoundLooping: (name, delayS: number): (() => Promise<void>) => {
       if (!audioBuffers[name]) {
-        throw Error(`Tried to play a sound that wasn't buffered (${name})`);
+        // We do not throw here. Instead we log and let the component life. Its not a fatal error if sounds are missing.
+        logger.debug(`Tried to play a sound that wasn't buffered (${name})`);
+        return async () => {};
       }
       return playSoundLooping(
         audioContext,

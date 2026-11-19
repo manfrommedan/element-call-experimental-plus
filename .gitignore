@@ -42,3 +42,6 @@ yarn-error.log
 
 *storybook.log
 storybook-static
+
+# Nested checkout made by scripts/layered.sh
+/matrix-js-sdk/

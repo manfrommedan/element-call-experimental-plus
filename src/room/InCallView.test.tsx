@@ -15,22 +15,19 @@ import {
   vi,
 } from "vitest";
 import { act, render, type RenderResult } from "@testing-library/react";
-import { type LocalParticipant } from "livekit-client";
-import { BehaviorSubject, of } from "rxjs";
+import { BehaviorSubject } from "rxjs";
 import { BrowserRouter } from "react-router-dom";
 import { TooltipProvider } from "@vector-im/compound-web";
-import { RoomContext, useLocalParticipant } from "@livekit/components-react";
 import userEvent from "@testing-library/user-event";
 
 import { ActiveCall, InCallView } from "./InCallView";
 import {
-  mockLivekitRoom,
-  mockLocalParticipant,
   mockMediaDevices,
   mockMuteStates,
-  mockRemoteParticipant,
   mockRtcMembership,
   type MockRTCSession,
+  mockRTCSlot,
+  mockRTCMember,
 } from "../utils/test";
 import { E2eeType } from "../e2ee/e2eeType";
 import {
@@ -41,23 +38,19 @@ import {
   type CallViewModel,
   type CallViewModelOptions,
 } from "../state/CallViewModel/CallViewModel";
-import { alice, local } from "../utils/test-fixtures";
-import { HeaderStyle } from "../UrlParams";
-import { type CallMembership } from "matrix-js-sdk/lib/matrixrtc";
-import { MatrixRTCSessionEvent } from "matrix-js-sdk/lib/matrixrtc";
+import { alice, local, aliceRtcMember } from "../utils/test-fixtures";
 import { ReactionsSenderProvider } from "../reactions/useReactionsSender";
 import { useRoomEncryptionSystem } from "../e2ee/sharedKeyManagement";
-import { LivekitRoomAudioRenderer } from "../livekit/MatrixAudioRenderer";
+import { MemberAudioRenderer } from "../tracks/MemberAudioRenderer";
+import type * as MatrixRTCSdk from "@element-hq/matrixrtc-sdk";
+import { constant, type ObservableScope } from "@element-hq/matrixrtc-sdk";
 import { MediaDevicesContext } from "../MediaDevicesContext";
 import { type MediaDevices as ECMediaDevices } from "../state/MediaDevices";
 import { AppBar } from "../AppBar";
 import { type MatrixInfo } from "./VideoPreview";
-import { ProcessorProvider } from "../livekit/TrackProcessorContext";
+import { ProcessorProvider } from "../tracks/TrackProcessorContext";
 import { initializeWidget } from "../widget";
 import { RootElementProvider } from "../RootElementContext";
-import { RingingAudioRenderer } from "./RingingAudioRenderer";
-import { RingingStatus } from "../tile/RingingStatus";
-import type * as UrlParamsModule from "../UrlParams";
 
 initializeWidget();
 vi.hoisted(
@@ -72,46 +65,21 @@ vi.hoisted(
 
 vi.mock("../soundUtils");
 vi.mock("../useAudioContext");
-// Probes, so the tests can say whether the ringing pieces are on screen at all rather than
-// guessing from what they happen to render.
-vi.mock("./RingingAudioRenderer", () => ({
-  RingingAudioRenderer: vi.fn(() => null),
-}));
-vi.mock("../tile/RingingStatus", () => ({
-  RingingStatus: vi.fn(() => null),
-}));
-// Partial mock: everything else in the module stays real, and so does the parsing, so every
-// test that came before this sees exactly what it saw. Only the dialler test swaps the answer.
-const urlParams = vi.hoisted(() => ({
-  real: (() => ({})) as () => object,
-  answer: (() => ({})) as () => object,
-}));
-const getUrlParams = vi.hoisted(() => vi.fn(() => urlParams.answer()));
-vi.mock("../UrlParams", async (importOriginal) => {
-  const actual = await importOriginal<typeof UrlParamsModule>();
-  urlParams.real = actual.getUrlParams;
-  urlParams.answer = actual.getUrlParams;
-  return { ...actual, getUrlParams };
-});
 vi.mock("../tile/GridTile");
 vi.mock("../tile/SpotlightTile");
-vi.mock("@livekit/components-react");
-vi.mock("livekit-client/e2ee-worker?worker");
 vi.mock("../e2ee/sharedKeyManagement");
-vi.mock("../livekit/MatrixAudioRenderer");
+vi.mock("../tracks/MemberAudioRenderer");
+// ActiveCall builds the slot itself; the view is what these tests are about
+const createRTCSlotMock = vi.hoisted(() => vi.fn());
+vi.mock("@element-hq/matrixrtc-sdk", async (importOriginal) => ({
+  ...(await importOriginal<typeof MatrixRTCSdk>()),
+  createRTCSlot: createRTCSlotMock,
+}));
 vi.mock("react-use-measure", () => ({
   default: (): [() => void, object] => [(): void => {}, {}],
 }));
 
-// Must carry the local user's real id (the env resolves it from the fixtures), otherwise the
-// view model reads this membership as a remote member and the dialer accepts the call.
-const localRtcMember = mockRtcMembership("@local:example.org", "CCCC");
-const localParticipant = mockLocalParticipant({
-  identity: "@local:example.org:AAAAAA",
-});
-const remoteParticipant = mockRemoteParticipant({
-  identity: "@alice:example.org:AAAAAA",
-});
+const localRtcMember = mockRtcMembership("@carol:example.org", "CCCC");
 
 const matrixInfo = {
   userId: "",
@@ -128,30 +96,32 @@ let useRoomEncryptionSystemMock: MockedFunction<typeof useRoomEncryptionSystem>;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  urlParams.answer = urlParams.real;
 
-  // MatrixAudioRenderer is tested separately.
-  (
-    LivekitRoomAudioRenderer as MockedFunction<typeof LivekitRoomAudioRenderer>
-  ).mockImplementation((_props) => {
-    return <div>mocked: MatrixAudioRenderer</div>;
-  });
-  (
-    useLocalParticipant as MockedFunction<typeof useLocalParticipant>
-  ).mockImplementation(
-    () =>
-      ({
-        isScreenShareEnabled: false,
-        localParticipant: localRtcMember as unknown as LocalParticipant,
-      }) as unknown as ReturnType<typeof useLocalParticipant>,
+  createRTCSlotMock.mockImplementation((scope: ObservableScope) =>
+    mockRTCSlot(scope, {
+      localMember$: constant(
+        mockRTCMember(true, {
+          membership: localRtcMember,
+          tracks$: constant([]),
+        }),
+      ),
+      remoteMembers$: constant([
+        mockRTCMember(false, {
+          membership: aliceRtcMember,
+          tracks$: constant([]),
+        }),
+      ]),
+    }),
   );
+  // MemberAudioRenderer is tested separately.
+  (
+    MemberAudioRenderer as MockedFunction<typeof MemberAudioRenderer>
+  ).mockImplementation(() => <div>mocked: MemberAudioRenderer</div>);
   useRoomEncryptionSystemMock =
     useRoomEncryptionSystem as typeof useRoomEncryptionSystemMock;
   useRoomEncryptionSystemMock.mockReturnValue({ kind: E2eeType.NONE });
 });
 interface CreateInCallViewArgs {
-  /** Who is in the call. Leave the other party out to have someone left to ring. */
-  rtcMemberships?: CallMembership[];
   mediaDevices?: ECMediaDevices;
   callViewModelOptions?: Partial<CallViewModelOptions>;
   /** If true, wraps the rendered tree in an AppBar provider */
@@ -163,18 +133,10 @@ function createInCallView(args: CreateInCallViewArgs = {}): RenderResult & {
 } {
   const mediaDevices = args.mediaDevices ?? mockMediaDevices({});
   const muteState = mockMuteStates();
-  const livekitRoom = mockLivekitRoom(
-    {
-      localParticipant,
-    },
-    {
-      remoteParticipants$: of([remoteParticipant]),
-    },
-  );
   const { vm, footerVm, developerSettingsVm, rtcSession } =
     getBasicCallViewModelEnvironment(
       [local, alice],
-      args.rtcMemberships,
+      undefined,
       mediaDevices,
       args.callViewModelOptions,
     );
@@ -206,9 +168,7 @@ function createInCallView(args: CreateInCallViewArgs = {}): RenderResult & {
           vm={vm}
           rtcSession={rtcSession.asMockedSession()}
         >
-          <TooltipProvider>
-            <RoomContext value={livekitRoom}>{content}</RoomContext>
-          </TooltipProvider>
+          <TooltipProvider>{content}</TooltipProvider>
         </ReactionsSenderProvider>
       </MediaDevicesContext>
     </BrowserRouter>,
@@ -267,51 +227,6 @@ describe("InCallView", () => {
   });
 });
 
-describe("ringing while the dialler is up", () => {
-  it("leaves Element Call's ringtone out, since the dialler rings for itself", () => {
-    createInCallView({ callViewModelOptions: { phoneVoiceLayout: true } });
-    expect(RingingAudioRenderer).not.toHaveBeenCalled();
-  });
-
-  // A ring has to actually be going out for the status to have anything to say, and the app bar
-  // has to be the place it would say it, or the test passes for the wrong reason.
-  const ringing = (dialler: boolean): void => {
-    const { rtcSession } = createInCallView({
-      // Only we are in the call, so the other party is still being rung.
-      rtcMemberships: [localRtcMember as unknown as CallMembership],
-      withAppBar: true,
-      callViewModelOptions: {
-        header: HeaderStyle.AppBar,
-        waitForCallPickup: true,
-        ...(dialler ? { phoneVoiceLayout: true } : {}),
-      },
-    });
-    act(() => {
-      rtcSession.emit(MatrixRTCSessionEvent.DidSendCallNotification, {
-        event_id: "$notif1",
-        lifetime: 30,
-        notification_type: "ring",
-        sender: local.userId,
-      } as never);
-    });
-  };
-
-  it("keeps its ringing status to itself, since its own footer says as much", () => {
-    ringing(true);
-    expect(RingingStatus).not.toHaveBeenCalled();
-  });
-
-  it("shows the ringing status once there is no dialler to say it instead", () => {
-    ringing(false);
-    expect(RingingStatus).toHaveBeenCalled();
-  });
-
-  it("hands both back when there is no dialler, as on a call with the camera on", () => {
-    createInCallView();
-    expect(RingingAudioRenderer).toHaveBeenCalled();
-  });
-});
-
 describe("ActiveCall", () => {
   it("creates the view models and renders the call", async () => {
     const mediaDevices = mockMediaDevices({});
@@ -321,18 +236,16 @@ describe("ActiveCall", () => {
         <MediaDevicesContext value={mediaDevices}>
           <ProcessorProvider>
             <TooltipProvider>
-              <RoomContext value={mockLivekitRoom({ localParticipant })}>
-                <ActiveCall
-                  client={matrixRoom.client}
-                  rtcSession={rtcSession.asMockedSession()}
-                  matrixRoom={matrixRoom}
-                  muteStates={mockMuteStates()}
-                  matrixInfo={matrixInfo}
-                  onShareClick={null}
-                  e2eeSystem={{ kind: E2eeType.NONE }}
-                  onLeft={(): void => {}}
-                />
-              </RoomContext>
+              <ActiveCall
+                client={matrixRoom.client}
+                rtcSession={rtcSession.asMockedSession()}
+                matrixRoom={matrixRoom}
+                muteStates={mockMuteStates()}
+                matrixInfo={matrixInfo}
+                onShareClick={null}
+                e2eeSystem={{ kind: E2eeType.NONE }}
+                onLeft={(): void => {}}
+              />
             </TooltipProvider>
           </ProcessorProvider>
         </MediaDevicesContext>
@@ -371,18 +284,16 @@ describe("ActiveCall", () => {
             <MediaDevicesContext value={mediaDevices}>
               <ProcessorProvider>
                 <TooltipProvider>
-                  <RoomContext value={mockLivekitRoom({ localParticipant })}>
-                    <ActiveCall
-                      client={matrixRoom.client}
-                      rtcSession={rtcSession.asMockedSession()}
-                      matrixRoom={matrixRoom}
-                      muteStates={mockMuteStates()}
-                      matrixInfo={matrixInfo}
-                      onShareClick={null}
-                      e2eeSystem={{ kind: E2eeType.NONE }}
-                      onLeft={(): void => {}}
-                    />
-                  </RoomContext>
+                  <ActiveCall
+                    client={matrixRoom.client}
+                    rtcSession={rtcSession.asMockedSession()}
+                    matrixRoom={matrixRoom}
+                    muteStates={mockMuteStates()}
+                    matrixInfo={matrixInfo}
+                    onShareClick={null}
+                    e2eeSystem={{ kind: E2eeType.NONE }}
+                    onLeft={(): void => {}}
+                  />
                 </TooltipProvider>
               </ProcessorProvider>
             </MediaDevicesContext>

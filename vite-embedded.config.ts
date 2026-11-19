@@ -6,9 +6,8 @@ Please see LICENSE in the repository root for full details.
 */
 
 import { defineConfig, mergeConfig } from "vite";
-import generateFile from "vite-plugin-generate-file";
 
-import fullConfig from "./vite.config";
+import fullConfig from "./vite.config.ts";
 
 const base = "./";
 
@@ -32,19 +31,6 @@ export default defineConfig((env) =>
         // debugging is unaffected.
         sourcemap: false,
       },
-      plugins: [
-        generateFile([
-          {
-            type: "json",
-            output: "./config.json",
-            data: {
-              matrix_rtc_session: {
-                wait_for_key_rotation_ms: 5000,
-              },
-            },
-          },
-        ]),
-      ],
     }),
   ),
 );
